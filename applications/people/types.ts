@@ -45,6 +45,13 @@ export type Position = {
   /** Multi-parent: a Position can report to more than one seat. Empty
    *  array means top-level. */
   reportsToPositionIds: string[];
+  /** What whoever holds this seat is answerable for — the Authority
+   *  Engine's only real input (M5). Not a role, not an access level: a
+   *  Position genuinely carries these responsibilities regardless of who
+   *  fills it, the same way a real institution's org chart works.
+   *  Editable only by the institution's founder for now — see the
+   *  Authority Engine's bootstrap rule. */
+  responsibilities: import("@/engines/authority/types").PermissionKey[];
   canvasX: number;
   canvasY: number;
   status: "active" | "archived";

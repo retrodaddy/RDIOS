@@ -71,14 +71,15 @@ export const mockIdentityProvider: IdentityProvider = {
 
   async createInstitution({ institutionName, institutionType, purpose, founderName, founderEmail }) {
     const s = store();
+    const person: Person = { id: randomUUID(), name: founderName.trim(), email: founderEmail.trim().toLowerCase() };
     const institution: Institution = {
       id: randomUUID(),
       name: institutionName.trim(),
       type: institutionType,
       purpose: purpose?.trim() || null,
+      founderPersonId: person.id,
       createdAt: new Date().toISOString(),
     };
-    const person: Person = { id: randomUUID(), name: founderName.trim(), email: founderEmail.trim().toLowerCase() };
     const membership: InstitutionMembership = {
       id: randomUUID(),
       institutionId: institution.id,

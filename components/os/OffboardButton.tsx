@@ -9,7 +9,15 @@ import { offboardPersonAction } from "@/applications/people/actions";
  *  profile screen that reads as final to the person doing it, so per the
  *  Visual Design System it's the one thing here presented as a dialog, not
  *  a drawer. */
-export function OffboardButton({ personId, personName }: { personId: string; personName: string }) {
+export function OffboardButton({
+  personId,
+  personName,
+  canOffboard,
+}: {
+  personId: string;
+  personName: string;
+  canOffboard: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -32,7 +40,9 @@ export function OffboardButton({ personId, personName }: { personId: string; per
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-xl border border-border px-3 py-1.5 text-xs text-dim transition-colors hover:border-red-500/40 hover:text-red-500"
+        disabled={!canOffboard}
+        title={canOffboard ? undefined : "Offboarding isn't your responsibility here."}
+        className="rounded-xl border border-border px-3 py-1.5 text-xs text-dim transition-colors hover:border-red-500/40 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:text-dim"
       >
         Offboard
       </button>

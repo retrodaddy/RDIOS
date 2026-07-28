@@ -1,4 +1,5 @@
 import "server-only";
+import type { PermissionKey } from "@/engines/authority/types";
 import type { Affiliation, AppointmentType, Capability, Position, PositionHolder } from "./types";
 
 /**
@@ -22,11 +23,20 @@ export interface PeopleProvider {
   updatePositionDetails(positionId: string, input: { name?: string; description?: string | null }): Promise<Position | null>;
   /** Replaces the full parent set in one call — the drag-to-connect
    *  interaction always knows the complete resulting set, never a single
-   *  add/remove. */
-  updatePositionParents(positionId: string, reportsToPositionIds: string[]): Promise<Position | null>;
+   *  add/remove. Rejects (`ok: false`) any set that would make the
+   *  Position its own ancestor — a real graph invariant the multi-parent
+   *  shape introduced that the old single-parent tree couldn't violate. */
+  updatePositionParents(
+    positionId: string,
+    reportsToPositionIds: string[]
+  ): Promise<{ ok: true; position: Position } | { ok: false; error: string }>;
   /** Persists where a founder dragged a node — cosmetic layout, never
    *  written to History. */
   movePosition(positionId: string, canvasX: number, canvasY: number): Promise<Position | null>;
+  /** Sets the complete responsibility set a Position carries (M5).
+   *  Founder-only at the action layer — see the Authority Engine's
+   *  bootstrap rule. */
+  updatePositionResponsibilities(positionId: string, responsibilities: PermissionKey[]): Promise<Position | null>;
 
   /** Every holder, past and present, for one Position — the append-only
    *  history the frozen design requires. */

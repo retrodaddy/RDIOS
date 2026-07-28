@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { mockIdentityProvider } from "./mock-provider";
+import { resolvePermissions } from "@/engines/authority/resolver";
 import type { IdentityContext } from "./types";
 
 /**
@@ -42,7 +43,9 @@ export async function getIdentityContext(): Promise<IdentityContext | null> {
   const institution = await mockIdentityProvider.getInstitution(membership.institutionId);
   if (!institution) return null;
 
-  return { person, institution, membership };
+  const permissions = await resolvePermissions(institution, person);
+
+  return { person, institution, membership, permissions };
 }
 
 /** Gate a real RDIOS page — resolves identity or sends them to /login,

@@ -17,11 +17,13 @@ export function AppointHolderCard({
   availablePositions,
   current,
   past,
+  canManage,
 }: {
   personId: string;
   availablePositions: Position[];
   current: Holding[];
   past: Holding[];
+  canManage: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -61,7 +63,9 @@ export function AppointHolderCard({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="rounded-xl border border-border bg-surface/40 px-3 py-1.5 text-xs text-text transition-colors hover:bg-surface"
+          disabled={!canManage}
+          title={canManage ? undefined : "Appointing people isn't your responsibility here."}
+          className="rounded-xl border border-border bg-surface/40 px-3 py-1.5 text-xs text-text transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface/40"
         >
           Appoint
         </button>
@@ -77,7 +81,13 @@ export function AppointHolderCard({
                 <p className="truncate text-sm text-text">{position?.name ?? "Unknown position"}</p>
                 <p className="text-xs text-dim">{APPOINTMENT_TYPE_LABELS[holder.appointmentType]}</p>
               </div>
-              <button type="button" onClick={() => end(holder.id)} disabled={pending} className="shrink-0 text-xs text-dim hover:text-text disabled:opacity-50">
+              <button
+                type="button"
+                onClick={() => end(holder.id)}
+                disabled={pending || !canManage}
+                title={canManage ? undefined : "Ending an appointment isn't your responsibility here."}
+                className="shrink-0 text-xs text-dim hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 End
               </button>
             </li>

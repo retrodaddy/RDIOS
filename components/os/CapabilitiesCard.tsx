@@ -14,10 +14,12 @@ export function CapabilitiesCard({
   personId,
   capabilities,
   institutionType,
+  canManage,
 }: {
   personId: string;
   capabilities: Capability[];
   institutionType: InstitutionType;
+  canManage: boolean;
 }) {
   const terminology = getTerminology(institutionType);
   const router = useRouter();
@@ -56,7 +58,13 @@ export function CapabilitiesCard({
           {capabilities.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-4 px-5 py-3.5">
               <p className="truncate text-sm text-text">{c.label}</p>
-              <button type="button" onClick={() => revoke(c.id)} disabled={pending} className="shrink-0 text-xs text-dim hover:text-text disabled:opacity-50">
+              <button
+                type="button"
+                onClick={() => revoke(c.id)}
+                disabled={pending || !canManage}
+                title={canManage ? undefined : "Managing capabilities isn't your responsibility here."}
+                className="shrink-0 text-xs text-dim hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 Revoke
               </button>
             </li>
@@ -69,12 +77,14 @@ export function CapabilitiesCard({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder={`e.g. ${terminology.capabilityExample}`}
-          className="min-w-0 flex-1 rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          disabled={!canManage}
+          className="min-w-0 flex-1 rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
         />
         <button
           type="button"
           onClick={grant}
-          disabled={pending || !label.trim()}
+          disabled={pending || !label.trim() || !canManage}
+          title={canManage ? undefined : "Managing capabilities isn't your responsibility here."}
           className="shrink-0 rounded-xl bg-accent px-3 py-2 text-xs font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Grant

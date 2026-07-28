@@ -77,6 +77,9 @@ export type InviteResult = { ok: boolean; error?: string; membershipId?: string 
 export async function inviteAction(formData: FormData): Promise<InviteResult> {
   const ctx = await getIdentityContext();
   if (!ctx) return { ok: false, error: "Sign in first." };
+  if (!ctx.permissions.has("members.invite")) {
+    return { ok: false, error: "Inviting new people isn't your responsibility here." };
+  }
 
   const email = String(formData.get("email") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();

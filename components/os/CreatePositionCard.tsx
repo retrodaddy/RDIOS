@@ -12,7 +12,15 @@ import { getTerminology } from "@/os/institution/terminology";
  *  System's rule that dialogs are reserved only for irreversible actions.
  *  Single-parent `reportsToPositionId` only, per M3 scope; the real
  *  Organization Builder graph is M4. */
-export function CreatePositionCard({ positions, institutionType }: { positions: Position[]; institutionType: InstitutionType }) {
+export function CreatePositionCard({
+  positions,
+  institutionType,
+  canManage,
+}: {
+  positions: Position[];
+  institutionType: InstitutionType;
+  canManage: boolean;
+}) {
   const terminology = getTerminology(institutionType);
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -41,7 +49,9 @@ export function CreatePositionCard({ positions, institutionType }: { positions: 
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-xl border border-border bg-surface/40 px-4 py-2 text-sm text-text transition-colors hover:bg-surface"
+        disabled={!canManage}
+        title={canManage ? undefined : "Managing positions isn't your responsibility here."}
+        className="rounded-xl border border-border bg-surface/40 px-4 py-2 text-sm text-text transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface/40"
       >
         Add a position
       </button>

@@ -38,12 +38,19 @@ export default async function OrganizationPage() {
         </Link>
       </div>
       <p className="mt-2 text-sm text-muted">
-        Drag a position to move it. Drag from the small handle on top of a position to the seat it reports to — drag
-        again to disconnect. Click empty space to add a position. Click any position to see and edit its details.
+        {ctx.permissions.has("organization.manage")
+          ? "Drag a position to move it. Drag from the small handle on top of a position to the seat it reports to — drag again to disconnect. Click empty space to add a position. Click any position to see and edit its details."
+          : "You can look around and tidy the layout, but managing positions and people here isn't your responsibility. Click any position to see its details."}
       </p>
 
       <div className="mt-6">
-        <OrganizationCanvas initialPositions={positions} holdersByPosition={holdersByPosition} roster={roster} />
+        <OrganizationCanvas
+          initialPositions={positions}
+          holdersByPosition={holdersByPosition}
+          roster={roster}
+          canManage={ctx.permissions.has("organization.manage")}
+          isFounder={ctx.institution.founderPersonId === ctx.person.id}
+        />
       </div>
     </div>
   );

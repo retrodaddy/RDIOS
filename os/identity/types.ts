@@ -47,6 +47,10 @@ export type Institution = {
    *  Setup Experience v2. Optional, never a gate; stated once, if at all,
    *  and remembered permanently in Be Aware afterward. */
   purpose: string | null;
+  /** The person who created this institution — always holds every
+   *  responsibility, per the Authority Engine's bootstrap rule (M5).
+   *  Immutable; set once at creation, never reassigned. */
+  founderPersonId: string;
   createdAt: string;
 };
 
@@ -73,9 +77,12 @@ export type InstitutionMembership = {
 
 /** The resolved context every authenticated request in RDIOS needs before
  *  anything else can happen — tenant resolved, person resolved, their
- *  membership in this specific institution resolved. */
+ *  membership in this specific institution resolved, and (M5) their real
+ *  responsibilities resolved once alongside it, never re-derived ad hoc
+ *  by whichever action happens to need it. */
 export type IdentityContext = {
   person: Person;
   institution: Institution;
   membership: InstitutionMembership;
+  permissions: Set<import("@/engines/authority/types").PermissionKey>;
 };

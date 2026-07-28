@@ -22,10 +22,14 @@ export function OrganizationCanvas({
   initialPositions,
   holdersByPosition,
   roster,
+  canManage,
+  isFounder,
 }: {
   initialPositions: Position[];
   holdersByPosition: Record<string, PositionHolder[]>;
   roster: RosterPerson[];
+  canManage: boolean;
+  isFounder: boolean;
 }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,6 +42,13 @@ export function OrganizationCanvas({
   const [connecting, setConnecting] = useState<{ fromId: string; point: Point } | null>(null);
   const [newNodeAt, setNewNodeAt] = useState<Point | null>(null);
   const [newNodeName, setNewNodeName] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const holderName = (positionId: string) => {
     const holder = holdersByPosition[positionId]?.find((h) => !h.endedAt);
@@ -61,6 +72,10 @@ export function OrganizationCanvas({
 
   const startConnect = (e: React.PointerEvent, positionId: string) => {
     e.stopPropagation();
+    if (!canManage) {
+      setNotice("Managing positions isn't your responsibility here — you can still look around.");
+      return;
+    }
     setConnecting({ fromId: positionId, point: pointFromClient(e.clientX, e.clientY) });
   };
 
@@ -102,12 +117,20 @@ export function OrganizationCanvas({
         if (target) {
           const from = positions.find((p) => p.id === connecting.fromId);
           if (from) {
-            const already = from.reportsToPositionIds.includes(target.id);
+            const previousParents = from.reportsToPositionIds;
+            const already = previousParents.includes(target.id);
             const nextParents = already
-              ? from.reportsToPositionIds.filter((id) => id !== target.id)
-              : [...from.reportsToPositionIds, target.id];
+              ? previousParents.filter((id) => id !== target.id)
+              : [...previousParents, target.id];
             setPositions((prev) => prev.map((p) => (p.id === from.id ? { ...p, reportsToPositionIds: nextParents } : p)));
-            updatePositionParentsAction(from.id, nextParents).then(() => router.refresh());
+            updatePositionParentsAction(from.id, nextParents).then((result) => {
+              if (!result.ok) {
+                setPositions((prev) => prev.map((p) => (p.id === from.id ? { ...p, reportsToPositionIds: previousParents } : p)));
+                setNotice(result.error ?? "That connection isn't possible.");
+              } else {
+                router.refresh();
+              }
+            });
           }
         }
         setConnecting(null);
@@ -138,14 +161,22 @@ export function OrganizationCanvas({
 
   return (
     <div className="relative">
+      {notice && (
+        <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-full border border-border bg-bg px-4 py-1.5 text-xs text-muted shadow-lg">
+          {notice}
+        </div>
+      )}
       <div
         ref={containerRef}
         className="relative h-[68vh] w-full overflow-auto rounded-2xl border border-border bg-surface/20"
         style={{ backgroundImage: "radial-gradient(circle, var(--os-border) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
         onClick={(e) => {
-          if ((e.target as HTMLElement).dataset.canvasBg) {
-            setNewNodeAt(pointFromClient(e.clientX, e.clientY));
+          if (!(e.target as HTMLElement).dataset.canvasBg) return;
+          if (!canManage) {
+            setNotice("Managing positions isn't your responsibility here — you can still look around.");
+            return;
           }
+          setNewNodeAt(pointFromClient(e.clientX, e.clientY));
         }}
       >
         <div data-canvas-bg style={{ width: canvasWidth, height: canvasHeight, position: "relative" }}>
@@ -260,6 +291,8 @@ export function OrganizationCanvas({
           allPositions={positions}
           holders={holdersByPosition[selected.id] ?? []}
           roster={roster}
+          canManage={canManage}
+          isFounder={isFounder}
           onClose={() => setSelectedId(null)}
         />
       )}

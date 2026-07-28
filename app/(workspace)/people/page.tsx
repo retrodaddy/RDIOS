@@ -77,7 +77,11 @@ export default async function PeoplePage() {
             >
               Organization
             </Link>
-            <CreatePositionCard positions={positions} institutionType={ctx.institution.type} />
+            <CreatePositionCard
+              positions={positions}
+              institutionType={ctx.institution.type}
+              canManage={ctx.permissions.has("organization.manage")}
+            />
           </div>
         </div>
         {positions.length === 0 ? (

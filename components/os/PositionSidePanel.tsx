@@ -7,9 +7,11 @@ import {
   endHolderAction,
   updatePositionDetailsAction,
   updatePositionParentsAction,
+  updatePositionResponsibilitiesAction,
 } from "@/applications/people/actions";
 import { APPOINTMENT_TYPES, APPOINTMENT_TYPE_LABELS } from "@/applications/people/types";
 import type { AppointmentType, Position, PositionHolder } from "@/applications/people/types";
+import { PERMISSIONS, PERMISSION_LABELS, PERMISSION_DESCRIPTIONS, type PermissionKey } from "@/engines/authority/types";
 
 export type RosterPerson = { id: string; name: string; email: string; status: "active" | "invited" };
 
@@ -17,18 +19,25 @@ export type RosterPerson = { id: string; name: string; email: string; status: "a
  *  holder, reports-to, description, vacant/filled, quick actions)" per
  *  the frozen Product Foundation. Slides in over the canvas, which stays
  *  visible and interactive behind it, per the same document's flagship
- *  description. */
+ *  description. Every control here stays visible to everyone — per the
+ *  founder's own M5 instruction, the goal is not to hide pages, it's to
+ *  make each person's real responsibility legible. Controls a person
+ *  can't use are disabled with a plain-language reason, never removed. */
 export function PositionSidePanel({
   position,
   allPositions,
   holders,
   roster,
+  canManage,
+  isFounder,
   onClose,
 }: {
   position: Position;
   allPositions: Position[];
   holders: PositionHolder[];
   roster: RosterPerson[];
+  canManage: boolean;
+  isFounder: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -45,7 +54,7 @@ export function PositionSidePanel({
   const children = allPositions.filter((p) => p.reportsToPositionIds.includes(position.id));
 
   const saveName = () => {
-    if (name.trim() === position.name) return;
+    if (!canManage || name.trim() === position.name) return;
     start(async () => {
       await updatePositionDetailsAction(position.id, { name: name.trim() });
       router.refresh();
@@ -53,7 +62,7 @@ export function PositionSidePanel({
   };
 
   const saveDescription = () => {
-    if ((description.trim() || null) === position.description) return;
+    if (!canManage || (description.trim() || null) === position.description) return;
     start(async () => {
       await updatePositionDetailsAction(position.id, { description: description.trim() || null });
       router.refresh();
@@ -90,6 +99,16 @@ export function PositionSidePanel({
     });
   };
 
+  const toggleResponsibility = (key: PermissionKey) => {
+    const next = position.responsibilities.includes(key)
+      ? position.responsibilities.filter((r) => r !== key)
+      : [...position.responsibilities, key];
+    start(async () => {
+      await updatePositionResponsibilitiesAction(position.id, next);
+      router.refresh();
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-modal="true" aria-label={position.name}>
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
@@ -99,7 +118,8 @@ export function PositionSidePanel({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={saveName}
-            className="w-full bg-transparent font-display text-xl font-medium text-text outline-none focus:underline"
+            disabled={!canManage}
+            className="w-full bg-transparent font-display text-xl font-medium text-text outline-none focus:underline disabled:opacity-90"
           />
           <button type="button" onClick={onClose} className="shrink-0 text-xs text-dim hover:text-text">
             Close
@@ -115,9 +135,10 @@ export function PositionSidePanel({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onBlur={saveDescription}
+          disabled={!canManage}
           placeholder="What this position is responsible for — optional."
           rows={2}
-          className="mt-4 w-full resize-none rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          className="mt-4 w-full resize-none rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-70"
         />
 
         <section className="mt-6">
@@ -128,7 +149,13 @@ export function PositionSidePanel({
                 <p className="truncate text-sm text-text">{holderPerson?.name ?? "Someone"}</p>
                 <p className="text-xs text-dim">{APPOINTMENT_TYPE_LABELS[holder.appointmentType]}</p>
               </div>
-              <button type="button" onClick={() => end(holder.id)} disabled={pending} className="shrink-0 text-xs text-dim hover:text-text disabled:opacity-50">
+              <button
+                type="button"
+                onClick={() => end(holder.id)}
+                disabled={pending || !canManage}
+                title={canManage ? undefined : "Ending an appointment isn't your responsibility here."}
+                className="shrink-0 text-xs text-dim hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 End
               </button>
             </div>
@@ -175,8 +202,10 @@ export function PositionSidePanel({
           ) : (
             <button
               type="button"
-              onClick={() => setAppointing(true)}
-              className="mt-2 w-full rounded-xl border border-border px-3 py-2.5 text-left text-sm text-dim transition-colors hover:bg-surface hover:text-text"
+              onClick={() => (canManage ? setAppointing(true) : undefined)}
+              disabled={!canManage}
+              title={canManage ? undefined : "Appointing people isn't your responsibility here."}
+              className="mt-2 w-full rounded-xl border border-border px-3 py-2.5 text-left text-sm text-dim transition-colors hover:bg-surface hover:text-text disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-dim"
             >
               Unfilled — appoint someone
             </button>
@@ -192,7 +221,13 @@ export function PositionSidePanel({
               {parents.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
                   <span className="truncate text-text">{p.name}</span>
-                  <button type="button" onClick={() => removeParent(p.id)} disabled={pending} className="shrink-0 text-xs text-dim hover:text-text disabled:opacity-50">
+                  <button
+                    type="button"
+                    onClick={() => removeParent(p.id)}
+                    disabled={pending || !canManage}
+                    title={canManage ? undefined : "Managing positions isn't your responsibility here."}
+                    className="shrink-0 text-xs text-dim hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     Remove
                   </button>
                 </li>
@@ -213,6 +248,39 @@ export function PositionSidePanel({
             </ul>
           </section>
         )}
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Responsible for</h3>
+          <p className="mt-1 text-xs text-dim">
+            {isFounder
+              ? "Whoever holds this seat takes on these — set here, once, per position."
+              : "What whoever holds this seat is answerable for."}
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {PERMISSIONS.map((key) => {
+              const checked = position.responsibilities.includes(key);
+              return (
+                <li key={key} className="flex items-start gap-2.5 rounded-lg border border-border px-3 py-2">
+                  <input
+                    type="checkbox"
+                    id={`resp-${position.id}-${key}`}
+                    checked={checked}
+                    disabled={!isFounder || pending}
+                    onChange={() => toggleResponsibility(key)}
+                    className="mt-0.5 disabled:cursor-not-allowed"
+                  />
+                  <label htmlFor={`resp-${position.id}-${key}`} className="min-w-0">
+                    <p className={`text-sm ${checked ? "text-text" : "text-dim"}`}>{PERMISSION_LABELS[key]}</p>
+                    <p className="text-xs text-dim">{PERMISSION_DESCRIPTIONS[key]}</p>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          {!isFounder && (
+            <p className="mt-2 text-xs text-dim">Only the institution&apos;s founder can change what a position is responsible for.</p>
+          )}
+        </section>
       </div>
     </div>
   );

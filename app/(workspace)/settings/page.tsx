@@ -17,7 +17,7 @@ export default async function SettingsPage() {
         <h2 className="font-display text-lg">Invite someone</h2>
         <p className="mt-1 text-sm text-dim">They&apos;ll get a link to accept and sign in — no password.</p>
         <div className="mt-4">
-          <InviteForm />
+          <InviteForm canInvite={ctx.permissions.has("members.invite")} />
         </div>
       </section>
     </div>

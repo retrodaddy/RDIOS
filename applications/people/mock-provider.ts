@@ -23,6 +23,26 @@ function store(): Store {
   return g.__rdiosPeopleStore;
 }
 
+/** Is `candidateId` already an ancestor of `ofId`, walking up `ofId`'s
+ *  current reporting lines? Used to reject a parent assignment that would
+ *  make a Position its own descendant. */
+function isAncestorOf(candidateId: string, ofId: string, positions: Position[]): boolean {
+  const visited = new Set<string>();
+  const stack = [ofId];
+  while (stack.length > 0) {
+    const currentId = stack.pop()!;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+    const current = positions.find((p) => p.id === currentId);
+    if (!current) continue;
+    for (const parentId of current.reportsToPositionIds) {
+      if (parentId === candidateId) return true;
+      stack.push(parentId);
+    }
+  }
+  return false;
+}
+
 export const mockPeopleProvider: PeopleProvider = {
   async listPositions(institutionId) {
     return [...store().positions.values()].filter((p) => p.institutionId === institutionId);
@@ -39,6 +59,7 @@ export const mockPeopleProvider: PeopleProvider = {
       name: name.trim(),
       description: null,
       reportsToPositionIds,
+      responsibilities: [],
       canvasX,
       canvasY,
       status: "active",
@@ -57,10 +78,20 @@ export const mockPeopleProvider: PeopleProvider = {
   },
 
   async updatePositionParents(positionId, reportsToPositionIds) {
-    const position = store().positions.get(positionId);
-    if (!position) return null;
-    position.reportsToPositionIds = reportsToPositionIds.filter((id) => id !== positionId);
-    return position;
+    const s = store();
+    const position = s.positions.get(positionId);
+    if (!position) return { ok: false, error: "Position not found." };
+
+    const allPositions = [...s.positions.values()];
+    const filtered = reportsToPositionIds.filter((id) => id !== positionId);
+    for (const parentId of filtered) {
+      if (isAncestorOf(positionId, parentId, allPositions)) {
+        return { ok: false, error: "That would create a reporting cycle." };
+      }
+    }
+
+    position.reportsToPositionIds = filtered;
+    return { ok: true, position };
   },
 
   async movePosition(positionId, canvasX, canvasY) {
@@ -68,6 +99,13 @@ export const mockPeopleProvider: PeopleProvider = {
     if (!position) return null;
     position.canvasX = canvasX;
     position.canvasY = canvasY;
+    return position;
+  },
+
+  async updatePositionResponsibilities(positionId, responsibilities) {
+    const position = store().positions.get(positionId);
+    if (!position) return null;
+    position.responsibilities = responsibilities;
     return position;
   },
 

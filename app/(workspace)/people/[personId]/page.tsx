@@ -39,9 +39,25 @@ export default async function PersonProfilePage({ params }: { params: { personId
         {membership.status === "invited" ? " — invited, hasn't signed in yet" : ""}
       </p>
 
-      <AppointHolderCard personId={person.id} availablePositions={allPositions} current={current} past={past} />
-      <AffiliationsCard personId={person.id} affiliations={affiliations} institutionType={ctx.institution.type} />
-      <CapabilitiesCard personId={person.id} capabilities={capabilities} institutionType={ctx.institution.type} />
+      <AppointHolderCard
+        personId={person.id}
+        availablePositions={allPositions}
+        current={current}
+        past={past}
+        canManage={ctx.permissions.has("organization.manage")}
+      />
+      <AffiliationsCard
+        personId={person.id}
+        affiliations={affiliations}
+        institutionType={ctx.institution.type}
+        canManage={ctx.permissions.has("organization.manage")}
+      />
+      <CapabilitiesCard
+        personId={person.id}
+        capabilities={capabilities}
+        institutionType={ctx.institution.type}
+        canManage={ctx.permissions.has("organization.manage")}
+      />
 
       <section className="mt-14 rounded-xl border border-border/60 p-5">
         <h2 className="text-[0.7rem] uppercase tracking-[0.2em] text-dim">Offboarding</h2>
@@ -50,7 +66,7 @@ export default async function PersonProfilePage({ params }: { params: { personId
           currently hold, all at once.
         </p>
         <div className="mt-3">
-          <OffboardButton personId={person.id} personName={person.name} />
+          <OffboardButton personId={person.id} personName={person.name} canOffboard={ctx.permissions.has("people.offboard")} />
         </div>
       </section>
     </div>
