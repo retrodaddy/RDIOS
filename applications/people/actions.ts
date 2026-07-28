@@ -1,25 +1,115 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
+import { mockIdentityProvider } from "@/os/identity/mock-provider";
 import { recordHistory } from "@/os/attention/history-store";
 import { mockPeopleProvider } from "./mock-provider";
-import type { AppointmentType } from "./types";
+import type { AppointmentType, Position } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
+type PositionResult = { ok: true; position: Position } | { ok: false; error: string };
+
+/** A safe default so a Position created off-canvas (the roster page's
+ *  simple form) still lands somewhere sane when its founder later opens
+ *  the Organization Builder — staggered so it doesn't stack exactly on
+ *  top of the last one created the same way. */
+function defaultCanvasSpot(existingCount: number): { canvasX: number; canvasY: number } {
+  const col = existingCount % 4;
+  const row = Math.floor(existingCount / 4);
+  return { canvasX: 80 + col * 220, canvasY: 80 + row * 160 };
+}
 
 /** Every People mutation resolves identity first and fails closed — these
  *  are called from forms, not page loads, so `getIdentityContext()` (not
- *  `requireIdentity()`) is correct here, same discipline as
- *  `os/attention/actions.ts`. */
+ *  `requireIdentity()`) is correct here. */
 export async function createPositionAction(formData: FormData): Promise<ActionResult> {
   const ctx = await getIdentityContext();
   if (!ctx) return { ok: false, error: "Sign in first." };
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { ok: false, error: "Position name is required." };
-  const reportsToPositionId = String(formData.get("reportsToPositionId") ?? "").trim() || null;
+  const reportsTo = String(formData.get("reportsToPositionId") ?? "").trim();
+  const existing = await mockPeopleProvider.listPositions(ctx.institution.id);
 
-  await mockPeopleProvider.createPosition({ institutionId: ctx.institution.id, name, reportsToPositionId });
+  await mockPeopleProvider.createPosition({
+    institutionId: ctx.institution.id,
+    name,
+    reportsToPositionIds: reportsTo ? [reportsTo] : [],
+    ...defaultCanvasSpot(existing.length),
+  });
+  return { ok: true };
+}
+
+/** The Organization Builder's "click empty canvas" creation path — the
+ *  founder already chose where the node goes by clicking there, so the
+ *  canvas coordinates come from the click, not a staggered default. */
+export async function createPositionOnCanvasAction(input: {
+  name: string;
+  canvasX: number;
+  canvasY: number;
+}): Promise<PositionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Position name is required." };
+
+  const position = await mockPeopleProvider.createPosition({
+    institutionId: ctx.institution.id,
+    name,
+    reportsToPositionIds: [],
+    canvasX: input.canvasX,
+    canvasY: input.canvasY,
+  });
+  return { ok: true, position };
+}
+
+/** Drag-to-connect always resolves to the complete new parent set —
+ *  released here as one atomic write, never a single add/remove, so a
+ *  drag that both adds and removes in one motion can't leave an
+ *  inconsistent intermediate state. */
+export async function updatePositionParentsAction(
+  positionId: string,
+  reportsToPositionIds: string[]
+): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+
+  const position = await mockPeopleProvider.getPosition(positionId);
+  if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
+
+  await mockPeopleProvider.updatePositionParents(positionId, reportsToPositionIds);
+  recordHistory(ctx.institution.id, `${ctx.person.name} changed ${position.name}'s reporting line.`);
+  return { ok: true };
+}
+
+/** Cosmetic layout only — never written to History. Dragging a node to a
+ *  tidier spot on the canvas isn't an institutional event. */
+export async function movePositionAction(positionId: string, canvasX: number, canvasY: number): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+
+  const position = await mockPeopleProvider.getPosition(positionId);
+  if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
+
+  await mockPeopleProvider.movePosition(positionId, canvasX, canvasY);
+  return { ok: true };
+}
+
+export async function updatePositionDetailsAction(
+  positionId: string,
+  input: { name?: string; description?: string | null }
+): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+
+  const position = await mockPeopleProvider.getPosition(positionId);
+  if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
+
+  const renamed = input.name !== undefined && input.name.trim() !== position.name;
+  await mockPeopleProvider.updatePositionDetails(positionId, input);
+  if (renamed) {
+    recordHistory(ctx.institution.id, `${ctx.person.name} renamed ${position.name} to ${input.name!.trim()}.`);
+  }
   return { ok: true };
 }
 
@@ -36,7 +126,9 @@ export async function appointHolderAction(formData: FormData): Promise<ActionRes
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
 
   await mockPeopleProvider.appointHolder({ positionId, personId, appointmentType });
-  recordHistory(ctx.institution.id, `${ctx.person.name} appointed someone to ${position.name}.`);
+  const appointedName =
+    personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
+  recordHistory(ctx.institution.id, `${ctx.person.name} appointed ${appointedName} to ${position.name}.`);
   return { ok: true };
 }
 
@@ -106,9 +198,11 @@ export async function offboardPersonAction(formData: FormData): Promise<ActionRe
   if (!personId) return { ok: false, error: "Missing person id." };
 
   const result = await mockPeopleProvider.offboardPerson(ctx.institution.id, personId);
+  const offboardedName =
+    personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
   recordHistory(
     ctx.institution.id,
-    `${ctx.person.name} offboarded someone (${result.closedPositions} position(s), ${result.closedAffiliations} affiliation(s) closed).`
+    `${ctx.person.name} offboarded ${offboardedName} (${result.closedPositions} position(s), ${result.closedAffiliations} affiliation(s) closed).`
   );
   return { ok: true };
 }

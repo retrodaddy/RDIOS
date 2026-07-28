@@ -2,27 +2,36 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_DESTINATIONS, SETTINGS_DESTINATION } from "@/os/navigation";
+import { getNavDestinations, getSettingsDestination } from "@/os/navigation";
 import { signOutAction } from "@/os/identity/actions";
+import type { InstitutionType } from "@/os/identity/types";
 
 /**
  * The Operating System's chrome — the one shell every RDIOS screen renders
  * inside. Calm, plain, verb-first per the frozen Experience Principles:
  * no engine names, no jargon, one destination per real question. Built
  * fresh for RDIOS — RDE's shell is architectural precedent only, not
- * runtime code borrowed here.
+ * runtime code borrowed here. Nav labels resolve through the institution's
+ * own type so the sidebar reads true for whatever kind of institution this
+ * actually is, not a business-software default applied everywhere.
  */
 export function Shell({
   institutionName,
+  institutionType,
   personName,
+  personRole,
   children,
 }: {
   institutionName: string;
+  institutionType: InstitutionType;
   personName: string;
+  personRole?: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/home" ? pathname === "/home" : pathname.startsWith(href));
+  const destinations = getNavDestinations(institutionType);
+  const settingsDestination = getSettingsDestination(institutionType);
 
   return (
     <div className="min-h-screen bg-bg text-text md:flex">
@@ -38,7 +47,7 @@ export function Shell({
         </div>
 
         <nav aria-label="Main" className="flex-1 space-y-0.5 px-3">
-          {NAV_DESTINATIONS.map((d) => (
+          {destinations.map((d) => (
             <Link
               key={d.key}
               href={d.href}
@@ -53,20 +62,23 @@ export function Shell({
 
         <div className="border-t border-border p-3">
           <Link
-            href={SETTINGS_DESTINATION.href}
+            href={settingsDestination.href}
             className={`flex items-center rounded-md px-3 py-2 text-sm transition-colors ${
-              isActive(SETTINGS_DESTINATION.href) ? "bg-accent/10 text-accent-bright" : "text-muted hover:bg-surface hover:text-text"
+              isActive(settingsDestination.href) ? "bg-accent/10 text-accent-bright" : "text-muted hover:bg-surface hover:text-text"
             }`}
           >
-            {SETTINGS_DESTINATION.label}
+            {settingsDestination.label}
           </Link>
-          <div className="mt-2 flex items-center justify-between px-3 py-1">
-            <span className="truncate text-xs text-dim">{personName}</span>
-            <form action={signOutAction}>
-              <button type="submit" className="text-xs text-dim hover:text-accent-bright">
-                Sign out
-              </button>
-            </form>
+          <div className="mt-2 px-3 py-1">
+            <div className="flex items-center justify-between">
+              <span className="truncate text-xs text-dim">{personName}</span>
+              <form action={signOutAction}>
+                <button type="submit" className="text-xs text-dim hover:text-accent-bright">
+                  Sign out
+                </button>
+              </form>
+            </div>
+            {personRole && <p className="truncate text-[0.68rem] text-dim/70">{personRole}</p>}
           </div>
         </div>
       </aside>

@@ -32,16 +32,42 @@ export const mockPeopleProvider: PeopleProvider = {
     return store().positions.get(positionId) ?? null;
   },
 
-  async createPosition({ institutionId, name, reportsToPositionId }) {
+  async createPosition({ institutionId, name, reportsToPositionIds, canvasX, canvasY }) {
     const position: Position = {
       id: randomUUID(),
       institutionId,
       name: name.trim(),
-      reportsToPositionId,
+      description: null,
+      reportsToPositionIds,
+      canvasX,
+      canvasY,
       status: "active",
       createdAt: new Date().toISOString(),
     };
     store().positions.set(position.id, position);
+    return position;
+  },
+
+  async updatePositionDetails(positionId, { name, description }) {
+    const position = store().positions.get(positionId);
+    if (!position) return null;
+    if (name !== undefined) position.name = name.trim();
+    if (description !== undefined) position.description = description?.trim() || null;
+    return position;
+  },
+
+  async updatePositionParents(positionId, reportsToPositionIds) {
+    const position = store().positions.get(positionId);
+    if (!position) return null;
+    position.reportsToPositionIds = reportsToPositionIds.filter((id) => id !== positionId);
+    return position;
+  },
+
+  async movePosition(positionId, canvasX, canvasY) {
+    const position = store().positions.get(positionId);
+    if (!position) return null;
+    position.canvasX = canvasX;
+    position.canvasY = canvasY;
     return position;
   },
 

@@ -4,11 +4,23 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addAffiliationAction, endAffiliationAction } from "@/applications/people/actions";
 import type { Affiliation } from "@/applications/people/types";
+import type { InstitutionType } from "@/os/identity/types";
+import { getTerminology } from "@/os/institution/terminology";
 
 /** Affiliation — a real, non-authority relationship, append-only per the
  *  frozen People Domain Review. Free-text label since Institution
- *  Configuration's type catalogs don't exist yet. */
-export function AffiliationsCard({ personId, affiliations }: { personId: string; affiliations: Affiliation[] }) {
+ *  Configuration's type catalogs don't exist yet — the placeholder still
+ *  suggests institution-true examples instead of a generic default. */
+export function AffiliationsCard({
+  personId,
+  affiliations,
+  institutionType,
+}: {
+  personId: string;
+  affiliations: Affiliation[];
+  institutionType: InstitutionType;
+}) {
+  const terminology = getTerminology(institutionType);
   const router = useRouter();
   const [label, setLabel] = useState("");
   const [pending, start] = useTransition();
@@ -66,7 +78,7 @@ export function AffiliationsCard({ personId, affiliations }: { personId: string;
         <input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="e.g. Volunteer, Donor, Board Member"
+          placeholder={`e.g. ${terminology.affiliationExample}`}
           className="min-w-0 flex-1 rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent"
         />
         <button

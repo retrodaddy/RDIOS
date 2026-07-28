@@ -9,9 +9,8 @@ export default async function SettingsPage() {
       <p className="text-xs uppercase tracking-[0.3em] text-accent-bright">Settings</p>
       <h1 className="mt-2 font-display text-3xl font-medium">How is this institution configured?</h1>
       <p className="mt-2 text-muted">
-        {ctx.institution.name} — everything here is configuration, not code, per the frozen Institution
-        Configuration Layer. Only invitations are real today; terminology, branding, and business rules arrive with
-        the People and Settings applications.
+        {ctx.institution.name}&apos;s settings live here — who&apos;s part of it, and how it works. Invitations are
+        ready today; naming, branding, and business rules are on the way.
       </p>
 
       <section className="mt-10 rounded-2xl border border-border bg-surface/40 p-6">

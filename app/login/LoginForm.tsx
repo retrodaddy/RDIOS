@@ -43,7 +43,7 @@ export function LoginForm() {
       >
         {pending ? "Signing in…" : "Continue"}
       </button>
-      <p className="text-center text-xs text-dim">Dev-mode sign-in — real authentication arrives with RDIOS&apos;s own infrastructure.</p>
+      <p className="text-center text-xs text-dim">Just your email for now — no password needed yet.</p>
     </div>
   );
 }

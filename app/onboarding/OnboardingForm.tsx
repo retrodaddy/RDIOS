@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { createInstitutionAction } from "@/os/identity/actions";
 import { INSTITUTION_TYPES, INSTITUTION_TYPE_LABELS } from "@/os/identity/types";
+import type { InstitutionType } from "@/os/identity/types";
+import { getTerminology } from "@/os/institution/terminology";
 
 export function OnboardingForm() {
   const [institutionName, setInstitutionName] = useState("");
-  const [institutionType, setInstitutionType] = useState("company");
+  const [institutionType, setInstitutionType] = useState<InstitutionType>("company");
+  const terminology = getTerminology(institutionType);
   const [purpose, setPurpose] = useState("");
   const [founderName, setFounderName] = useState("");
   const [founderEmail, setFounderEmail] = useState("");
@@ -33,11 +36,11 @@ export function OnboardingForm() {
     <div className="space-y-4 rounded-2xl border border-border bg-surface/40 p-6">
       <div>
         <label className="mb-1 block text-xs uppercase tracking-wide text-dim">Institution name</label>
-        <input value={institutionName} onChange={(e) => setInstitutionName(e.target.value)} placeholder="Aurora General Hospital" className={field} autoFocus />
+        <input value={institutionName} onChange={(e) => setInstitutionName(e.target.value)} placeholder={terminology.institutionNameExample} className={field} autoFocus />
       </div>
       <div>
         <label className="mb-1 block text-xs uppercase tracking-wide text-dim">Institution type</label>
-        <select value={institutionType} onChange={(e) => setInstitutionType(e.target.value)} className={field}>
+        <select value={institutionType} onChange={(e) => setInstitutionType(e.target.value as InstitutionType)} className={field}>
           {INSTITUTION_TYPES.map((t) => (
             <option key={t} value={t}>
               {INSTITUTION_TYPE_LABELS[t]}

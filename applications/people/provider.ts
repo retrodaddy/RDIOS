@@ -10,7 +10,23 @@ import type { Affiliation, AppointmentType, Capability, Position, PositionHolder
 export interface PeopleProvider {
   listPositions(institutionId: string): Promise<Position[]>;
   getPosition(positionId: string): Promise<Position | null>;
-  createPosition(input: { institutionId: string; name: string; reportsToPositionId: string | null }): Promise<Position>;
+  createPosition(input: {
+    institutionId: string;
+    name: string;
+    reportsToPositionIds: string[];
+    canvasX: number;
+    canvasY: number;
+  }): Promise<Position>;
+  /** Renames and/or redescribes a Position — the Organization Builder side
+   *  panel's editable fields. Undefined leaves a field unchanged. */
+  updatePositionDetails(positionId: string, input: { name?: string; description?: string | null }): Promise<Position | null>;
+  /** Replaces the full parent set in one call — the drag-to-connect
+   *  interaction always knows the complete resulting set, never a single
+   *  add/remove. */
+  updatePositionParents(positionId: string, reportsToPositionIds: string[]): Promise<Position | null>;
+  /** Persists where a founder dragged a node — cosmetic layout, never
+   *  written to History. */
+  movePosition(positionId: string, canvasX: number, canvasY: number): Promise<Position | null>;
 
   /** Every holder, past and present, for one Position — the append-only
    *  history the frozen design requires. */

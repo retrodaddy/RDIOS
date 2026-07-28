@@ -10,11 +10,6 @@ export type AttentionItem = {
   title: string;
   meta: string;
   verb: string;
-  /** Most Act Now items navigate (href). A card marked "drawer" opens
-   *  inline on Home instead — per the frozen Visual Design System's
-   *  preference for drawers over navigation for anything reversible and
-   *  quick. `href` still ties in as the fallback link target when known. */
-  kind?: "link" | "shape-organization";
   href: string;
 };
 

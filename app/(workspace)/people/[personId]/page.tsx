@@ -33,17 +33,26 @@ export default async function PersonProfilePage({ params }: { params: { personId
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
       <p className="text-xs uppercase tracking-[0.3em] text-accent-bright">Person</p>
-      <div className="mt-2 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-medium">{person.name}</h1>
-          <p className="mt-1 text-muted">{person.email}</p>
-        </div>
-        <OffboardButton personId={person.id} personName={person.name} />
-      </div>
+      <h1 className="mt-2 font-display text-3xl font-medium">{person.name}</h1>
+      <p className="mt-1 text-muted">
+        {person.email}
+        {membership.status === "invited" ? " — invited, hasn't signed in yet" : ""}
+      </p>
 
       <AppointHolderCard personId={person.id} availablePositions={allPositions} current={current} past={past} />
-      <AffiliationsCard personId={person.id} affiliations={affiliations} />
-      <CapabilitiesCard personId={person.id} capabilities={capabilities} />
+      <AffiliationsCard personId={person.id} affiliations={affiliations} institutionType={ctx.institution.type} />
+      <CapabilitiesCard personId={person.id} capabilities={capabilities} institutionType={ctx.institution.type} />
+
+      <section className="mt-14 rounded-xl border border-border/60 p-5">
+        <h2 className="text-[0.7rem] uppercase tracking-[0.2em] text-dim">Offboarding</h2>
+        <p className="mt-2 text-sm text-muted">
+          If {person.name} is leaving {ctx.institution.name}, offboarding ends every position and affiliation they
+          currently hold, all at once.
+        </p>
+        <div className="mt-3">
+          <OffboardButton personId={person.id} personName={person.name} />
+        </div>
+      </section>
     </div>
   );
 }

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireIdentity } from "@/os/identity/session";
 import { composeActNow, composeBeAware, composeHistory } from "@/os/attention/engine";
 import { timeAgo } from "@/os/attention/timeAgo";
-import { ShapeOrganizationCard } from "@/components/os/ShapeOrganizationCard";
 
 export const dynamic = "force-dynamic";
 
@@ -53,17 +52,13 @@ export default async function HomePage() {
           <ul className="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border">
             {actNow.map((item) => (
               <li key={item.id}>
-                {item.kind === "shape-organization" ? (
-                  <ShapeOrganizationCard item={item} />
-                ) : (
-                  <Link href={item.href} className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-surface">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm text-text">{item.title}</p>
-                      <p className="text-xs text-dim">{item.meta}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent-bright">{item.verb}</span>
-                  </Link>
-                )}
+                <Link href={item.href} className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-surface">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-text">{item.title}</p>
+                    <p className="text-xs text-dim">{item.meta}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent-bright">{item.verb}</span>
+                </Link>
               </li>
             ))}
           </ul>

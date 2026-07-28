@@ -2,18 +2,18 @@ import "server-only";
 import { mockIdentityProvider } from "@/os/identity/mock-provider";
 import { INSTITUTION_TYPE_LABELS } from "@/os/identity/types";
 import type { IdentityContext } from "@/os/identity/types";
+import { mockPeopleProvider } from "@/applications/people/mock-provider";
 import { listHistory } from "./history-store";
-import { getOrganizationShape, isOrganizationShaped } from "./org-shape-store";
 import type { AttentionItem, BeAwareItem, HistoryEntry } from "./types";
 
 /**
  * The Attention Engine, composed exactly as the frozen Product Foundation
  * describes: reads across whatever is active, decides what crosses the
- * threshold, writes to nothing. Today it reads Identity directly because
- * Identity is the only real application; once People/Work/Money exist,
- * each becomes a provider this function calls through the Attention
- * Contract instead of reaching into a domain directly — the seam is named
- * here so that swap is additive, not a rewrite.
+ * threshold, writes to nothing. It reads through each application's real
+ * data — Identity and People today — never a parallel description of the
+ * same fact. There is exactly one place "who reports to whom" lives: the
+ * People application's real Positions. Home only ever reflects that, it
+ * never asks the question a second time in its own words.
  */
 export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem[]> {
   const items: AttentionItem[] = [];
@@ -30,14 +30,14 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
     });
   }
 
-  if (!(await isOrganizationShaped(ctx.institution.id))) {
+  const positions = await mockPeopleProvider.listPositions(ctx.institution.id);
+  if (positions.length === 0) {
     items.push({
       id: "shape-organization",
       title: "Who reports to whom?",
-      meta: "A rough shape is enough for now",
+      meta: "Start with one position — the rest can follow later",
       verb: "Shape",
-      kind: "shape-organization",
-      href: "/home",
+      href: "/people",
     });
   }
 
@@ -58,9 +58,16 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     items.push({ id: "purpose", label: "Purpose", value: ctx.institution.purpose, sub: "" });
   }
 
-  const orgShape = await getOrganizationShape(ctx.institution.id);
-  if (orgShape) {
-    items.push({ id: "organization", label: "Organization", value: orgShape, sub: "" });
+  const positions = await mockPeopleProvider.listPositions(ctx.institution.id);
+  if (positions.length > 0) {
+    const holdersByPosition = await Promise.all(positions.map((p) => mockPeopleProvider.listPositionHolders(p.id)));
+    const filled = holdersByPosition.filter((holders) => holders.some((h) => !h.endedAt)).length;
+    items.push({
+      id: "organization",
+      label: "Organization",
+      value: `${positions.length} ${positions.length === 1 ? "position" : "positions"}`,
+      sub: `${filled} filled, ${positions.length - filled} unfilled`,
+    });
   }
 
   return items;

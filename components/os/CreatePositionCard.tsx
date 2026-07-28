@@ -4,13 +4,16 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPositionAction } from "@/applications/people/actions";
 import type { Position } from "@/applications/people/types";
+import type { InstitutionType } from "@/os/identity/types";
+import { getTerminology } from "@/os/institution/terminology";
 
 /** Creating a Position is reversible (it can sit unfilled, or be archived
  *  later), so this is a drawer, not a dialog — per the Visual Design
  *  System's rule that dialogs are reserved only for irreversible actions.
  *  Single-parent `reportsToPositionId` only, per M3 scope; the real
  *  Organization Builder graph is M4. */
-export function CreatePositionCard({ positions }: { positions: Position[] }) {
+export function CreatePositionCard({ positions, institutionType }: { positions: Position[]; institutionType: InstitutionType }) {
+  const terminology = getTerminology(institutionType);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -54,7 +57,7 @@ export function CreatePositionCard({ positions }: { positions: Position[] }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoFocus
-              placeholder="e.g. Operations Lead"
+              placeholder={`e.g. ${terminology.positionExample}`}
               className="mt-4 w-full rounded-xl border border-border bg-surface/40 px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
             />
 

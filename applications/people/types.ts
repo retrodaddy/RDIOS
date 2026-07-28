@@ -3,10 +3,15 @@
  * frozen folder structure (`applications/`, distinct from `os/`). Shapes
  * follow the frozen People Domain Review v1 exactly:
  *
- * - Position — authority, append-only holder history. Single-parent
- *   reporting for M3 (`reportsToPositionId`); the multi-parent graph the
- *   Organization Builder needs is M4's job, already named as an open
- *   unknown in the Master Roadmap, not solved here.
+ * - Position — authority, append-only holder history. Multi-parent
+ *   reporting (`reportsToPositionIds`), per M4's Organization Builder —
+ *   a Position can genuinely report to more than one seat (a dotted-line
+ *   report, a co-led department), the real-world shape the M3 single-parent
+ *   placeholder was always a stand-in for. `canvasX`/`canvasY` persist
+ *   where a founder dragged the node so the graph doesn't rearrange itself
+ *   between visits — view-state that happens to live on the domain object
+ *   rather than a separate OS-level preference, since it's this specific
+ *   Position's placement, not a person's general UI preference.
  * - Affiliation — a real, non-authority relationship (volunteer, donor,
  *   board member), append-only, same lifecycle shape as Position.
  * - Capability — a person's *current* qualification, deliberately NOT
@@ -33,7 +38,15 @@ export type Position = {
   id: string;
   institutionId: string;
   name: string;
-  reportsToPositionId: string | null;
+  /** Optional — the position's purpose, shown in the Organization Builder's
+   *  side panel. Free text, same "smallest implementation" discipline as
+   *  every other label here. */
+  description: string | null;
+  /** Multi-parent: a Position can report to more than one seat. Empty
+   *  array means top-level. */
+  reportsToPositionIds: string[];
+  canvasX: number;
+  canvasY: number;
   status: "active" | "archived";
   createdAt: string;
 };

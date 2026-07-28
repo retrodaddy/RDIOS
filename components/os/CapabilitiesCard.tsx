@@ -4,11 +4,22 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { grantCapabilityAction, revokeCapabilityAction } from "@/applications/people/actions";
 import type { Capability } from "@/applications/people/types";
+import type { InstitutionType } from "@/os/identity/types";
+import { getTerminology } from "@/os/institution/terminology";
 
 /** Capability — current qualification, deliberately NOT append-only per the
  *  frozen Capability Domain Reconsideration. Revoking removes it outright,
  *  no "ended" state to preserve. */
-export function CapabilitiesCard({ personId, capabilities }: { personId: string; capabilities: Capability[] }) {
+export function CapabilitiesCard({
+  personId,
+  capabilities,
+  institutionType,
+}: {
+  personId: string;
+  capabilities: Capability[];
+  institutionType: InstitutionType;
+}) {
+  const terminology = getTerminology(institutionType);
   const router = useRouter();
   const [label, setLabel] = useState("");
   const [pending, start] = useTransition();
@@ -57,7 +68,7 @@ export function CapabilitiesCard({ personId, capabilities }: { personId: string;
         <input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="e.g. Licensed Electrician, First Aid Certified"
+          placeholder={`e.g. ${terminology.capabilityExample}`}
           className="min-w-0 flex-1 rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent"
         />
         <button
