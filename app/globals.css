@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --os-bg: 250 250 249;
+  --os-surface: 244 244 242;
+  --os-border: 226 226 222;
+  --os-text: 28 28 26;
+  --os-muted: 96 96 92;
+  --os-dim: 140 140 134;
+  --os-accent: 79 70 229;
+  --os-accent-bright: 99 91 244;
+  --os-on-accent: 255 255 255;
+}
+
+:root[data-theme="dark"] {
+  --os-bg: 15 15 17;
+  --os-surface: 24 24 27;
+  --os-border: 40 40 44;
+  --os-text: 237 237 235;
+  --os-muted: 168 168 164;
+  --os-dim: 118 118 114;
+  --os-accent: 129 122 245;
+  --os-accent-bright: 150 143 255;
+  --os-on-accent: 15 15 17;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --os-bg: 15 15 17;
+    --os-surface: 24 24 27;
+    --os-border: 40 40 44;
+    --os-text: 237 237 235;
+    --os-muted: 168 168 164;
+    --os-dim: 118 118 114;
+    --os-accent: 129 122 245;
+    --os-accent-bright: 150 143 255;
+    --os-on-accent: 15 15 17;
+  }
+}
+
+* {
+  border-color: rgb(var(--os-border));
+}
+
+body {
+  background-color: rgb(var(--os-bg));
+  color: rgb(var(--os-text));
+}

@@ -1,0 +1,42 @@
+
+> rdios@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/15) ...
+   Generating static pages (3/15) 
+   Generating static pages (7/15) 
+   Generating static pages (11/15) 
+ ✓ Generating static pages (15/15)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ƒ /                                    161 B          87.4 kB
+├ ○ /_not-found                          873 B          88.1 kB
+├ ƒ /customers                           161 B          87.4 kB
+├ ƒ /documents                           161 B          87.4 kB
+├ ƒ /home                                1.47 kB        97.5 kB
+├ ƒ /invite/[membershipId]               884 B          88.1 kB
+├ ƒ /login                               1.11 kB        97.1 kB
+├ ƒ /money                               161 B          87.4 kB
+├ ƒ /onboarding                          1.5 kB         97.5 kB
+├ ƒ /people                              161 B          87.4 kB
+├ ƒ /projects                            161 B          87.4 kB
+├ ƒ /reports                             161 B          87.4 kB
+├ ƒ /settings                            1.22 kB        88.5 kB
+└ ƒ /work                                161 B          87.4 kB
++ First Load JS shared by all            87.3 kB
+  ├ chunks/117-2d442f9eda1ba14e.js       31.7 kB
+  ├ chunks/fd9d1056-19429b75bd7a3953.js  53.6 kB
+  └ other shared chunks (total)          1.89 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
