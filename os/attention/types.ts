@@ -24,4 +24,13 @@ export type HistoryEntry = {
   id: string;
   summary: string;
   occurredAt: string;
+  /** The polymorphic `subject_type`/`subject_id` pair the frozen Audit
+   *  Engine Design already specifies — optional here because most
+   *  existing call sites predate this field and stay institution-level
+   *  only. Community is the first application to pass it, so a Contact's
+   *  detail view can read as its own filtered slice of History instead
+   *  of a static fact sheet, exactly as named in the Community Domain
+   *  Reconsideration's six-month-test answer. */
+  subjectType?: string;
+  subjectId?: string;
 };

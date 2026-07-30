@@ -66,13 +66,19 @@ export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
 /** The fact that a Person has some relationship with one specific
  *  Institution — grants nothing by itself. Position/Affiliation attach
- *  here once the People application exists. */
+ *  here once the People application exists.
+ *
+ *  `expiresAt` only ever applies while `status === "invited"` — an
+ *  invitation left unaccepted past this point can no longer be accepted
+ *  (Implementation Sprint 1, Identity & Access). Once a membership becomes
+ *  "active", `expiresAt` is irrelevant and left as-is, never consulted. */
 export type InstitutionMembership = {
   id: string;
   institutionId: string;
   personId: string;
   status: MembershipStatus;
   createdAt: string;
+  expiresAt: string | null;
 };
 
 /** The resolved context every authenticated request in RDIOS needs before

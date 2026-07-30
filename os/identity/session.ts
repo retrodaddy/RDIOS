@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { mockIdentityProvider } from "./mock-provider";
@@ -25,8 +26,19 @@ export function institutionCookieName() {
 
 /** Resolve the current identity context, or null — never redirects. Use
  *  this on pages (like login) that must render regardless of session
- *  state. */
-export async function getIdentityContext(): Promise<IdentityContext | null> {
+ *  state.
+ *
+ *  Wrapped in React's `cache()` — Implementation Sprint 2.5 §8. Before
+ *  this, a single request re-ran the full person → memberships →
+ *  institution → permissions chain up to three times: once in the root
+ *  layout (for theme/preferences), once in the workspace layout (for the
+ *  Shell), and again in whichever page called `requireIdentity` itself.
+ *  `cache()` memoizes this specific function for the lifetime of one
+ *  request/render pass, so every one of those call sites gets the same
+ *  resolved result instead of hitting the mock provider three separate
+ *  times. This is exactly what `cache()` exists for — no new caching
+ *  infrastructure invented, no architecture change. */
+export const getIdentityContext = cache(async (): Promise<IdentityContext | null> => {
   const jar = cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -46,7 +58,7 @@ export async function getIdentityContext(): Promise<IdentityContext | null> {
   const permissions = await resolvePermissions(institution, person);
 
   return { person, institution, membership, permissions };
-}
+});
 
 /** Gate a real RDIOS page — resolves identity or sends them to /login,
  *  exactly the shape RDE's own requirePortalUser() has already proven,

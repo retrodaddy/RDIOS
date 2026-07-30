@@ -6,6 +6,7 @@ import { createPositionAction } from "@/applications/people/actions";
 import type { Position } from "@/applications/people/types";
 import type { InstitutionType } from "@/os/identity/types";
 import { getTerminology } from "@/os/institution/terminology";
+import { Button } from "@/components/ui";
 
 /** Creating a Position is reversible (it can sit unfilled, or be archived
  *  later), so this is a drawer, not a dialog — per the Visual Design
@@ -46,20 +47,19 @@ export function CreatePositionCard({
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
         onClick={() => setOpen(true)}
         disabled={!canManage}
         title={canManage ? undefined : "Managing positions isn't your responsibility here."}
-        className="rounded-xl border border-border bg-surface/40 px-4 py-2 text-sm text-text transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface/40"
       >
         Add a position
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Add a position">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-bg p-6 shadow-2xl sm:rounded-2xl">
+          <div className="os-anim-backdrop absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="os-anim-sheet relative w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-elevated p-6 sm:rounded-2xl">
             <p className="font-display text-lg">Add a position</p>
             <p className="mt-1 text-sm text-dim">A seat someone can hold — a title, and optionally who it reports to.</p>
 
@@ -85,23 +85,18 @@ export function CreatePositionCard({
             </select>
 
             {err && (
-              <p className="mt-2 text-sm text-red-500" role="alert">
+              <p className="mt-2 text-sm text-error" role="alert">
                 {err}
               </p>
             )}
 
             <div className="mt-4 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={save}
-                disabled={pending || !name.trim()}
-                className="rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
+              <Button onClick={save} disabled={pending || !name.trim()}>
                 {pending ? "Adding…" : "Add"}
-              </button>
-              <button type="button" onClick={() => setOpen(false)} className="ml-auto text-xs text-dim hover:text-text">
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)} className="ml-auto">
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>

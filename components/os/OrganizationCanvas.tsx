@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createPositionOnCanvasAction, movePositionAction, updatePositionParentsAction } from "@/applications/people/actions";
 import type { Position, PositionHolder } from "@/applications/people/types";
 import { PositionSidePanel, type RosterPerson } from "./PositionSidePanel";
+import { Button } from "@/components/ui";
 
 const NODE_WIDTH = 190;
 const NODE_HEIGHT = 60;
@@ -24,12 +25,14 @@ export function OrganizationCanvas({
   roster,
   canManage,
   isFounder,
+  institutionType,
 }: {
   initialPositions: Position[];
   holdersByPosition: Record<string, PositionHolder[]>;
   roster: RosterPerson[];
   canManage: boolean;
   isFounder: boolean;
+  institutionType: import("@/os/identity/types").InstitutionType;
 }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -162,7 +165,7 @@ export function OrganizationCanvas({
   return (
     <div className="relative">
       {notice && (
-        <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-full border border-border bg-bg px-4 py-1.5 text-xs text-muted shadow-lg">
+        <div className="os-anim-backdrop absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-full border border-border bg-elevated px-4 py-1.5 text-xs text-muted">
           {notice}
         </div>
       )}
@@ -242,7 +245,7 @@ export function OrganizationCanvas({
 
           {newNodeAt && (
             <div
-              className="absolute z-10 w-56 rounded-xl border border-border bg-bg p-3 shadow-2xl"
+              className="os-anim-dialog absolute z-10 w-56 rounded-xl border border-border bg-elevated p-3"
               style={{ left: newNodeAt.x, top: newNodeAt.y }}
               onPointerDown={(e) => e.stopPropagation()}
             >
@@ -255,24 +258,19 @@ export function OrganizationCanvas({
                 className="w-full rounded-lg border border-border bg-surface/40 px-2.5 py-2 text-sm text-text outline-none focus:border-accent"
               />
               <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={createNewNode}
-                  disabled={!newNodeName.trim()}
-                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
+                <Button size="sm" onClick={createNewNode} disabled={!newNodeName.trim()}>
                   Add
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setNewNodeAt(null);
                     setNewNodeName("");
                   }}
-                  className="text-xs text-dim hover:text-text"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -293,6 +291,7 @@ export function OrganizationCanvas({
           roster={roster}
           canManage={canManage}
           isFounder={isFounder}
+          institutionType={institutionType}
           onClose={() => setSelectedId(null)}
         />
       )}

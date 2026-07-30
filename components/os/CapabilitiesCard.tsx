@@ -6,6 +6,7 @@ import { grantCapabilityAction, revokeCapabilityAction } from "@/applications/pe
 import type { Capability } from "@/applications/people/types";
 import type { InstitutionType } from "@/os/identity/types";
 import { getTerminology } from "@/os/institution/terminology";
+import { Button } from "@/components/ui";
 
 /** Capability — current qualification, deliberately NOT append-only per the
  *  frozen Capability Domain Reconsideration. Revoking removes it outright,
@@ -80,15 +81,15 @@ export function CapabilitiesCard({
           disabled={!canManage}
           className="min-w-0 flex-1 rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-50"
         />
-        <button
-          type="button"
+        <Button
+          size="sm"
           onClick={grant}
           disabled={pending || !label.trim() || !canManage}
           title={canManage ? undefined : "Managing capabilities isn't your responsibility here."}
-          className="shrink-0 rounded-xl bg-accent px-3 py-2 text-xs font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="shrink-0"
         >
           Grant
-        </button>
+        </Button>
       </div>
     </section>
   );

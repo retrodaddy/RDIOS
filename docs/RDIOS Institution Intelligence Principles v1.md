@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🔵 Philosophy — no code, no UI, no architecture. Governs behavior, not placement: the frozen Platform Integration Strategy v1 §4 already settled where Tamizhi sits (a sibling product, never inside RDIOS, entering only through the Search provider registry and the Attention Contract) and the offline-safe test that keeps RDIOS from ever depending on it to function. This document picks up exactly where that one stopped — not *where* intelligence enters RDIOS, but *how it is allowed to behave* once it does. Every future application inherits this contract automatically; none of them design their own version of it.
 
 # RDIOS Institution Intelligence Principles v1

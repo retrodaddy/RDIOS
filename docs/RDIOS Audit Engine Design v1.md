@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🟢 Frozen v1 — per RDIOS Architecture Freeze Declaration v1. Resolves the one honest gap the Product Foundation v1 (§7) named explicitly: RDE has the *instinct* for audit scattered across several places, never one unified engine. This document designs that engine properly, as a first-class citizen of the Shared Engine Layer.
 
 # RDIOS Audit Engine Design v1

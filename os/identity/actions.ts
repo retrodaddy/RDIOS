@@ -6,6 +6,7 @@ import { mockIdentityProvider } from "./mock-provider";
 import { getIdentityContext, institutionCookieName, sessionCookieName } from "./session";
 import { INSTITUTION_TYPES, type InstitutionType } from "./types";
 import { recordHistory } from "@/os/attention/history-store";
+import { resolveLandingPath } from "@/os/preferences/actions";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -56,10 +57,19 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
   if (!person) return { ok: false, error: "Could not resolve your account." };
   const memberships = await mockIdentityProvider.listMembershipsForPerson(person.id);
   const active = memberships.find((m) => m.status === "active");
-  if (!active) return { ok: false, error: "No active institution for this account yet." };
+  if (!active) {
+    const invited = memberships.find((m) => m.status === "invited");
+    return {
+      ok: false,
+      error: invited
+        ? "You have a pending invitation — use the link whoever invited you sent, not this page, to accept it."
+        : "No active institution for this account yet — ask someone to invite you, or set one up yourself.",
+    };
+  }
 
   setSessionCookies(result.token, active.institutionId);
-  redirect("/home");
+  const institution = await mockIdentityProvider.getInstitution(active.institutionId);
+  redirect(institution ? await resolveLandingPath(person.id, institution.type) : "/home");
 }
 
 export async function signOutAction() {
@@ -95,5 +105,27 @@ export async function acceptInvitationAction(membershipId: string): Promise<Acti
   if ("error" in result) return { ok: false, error: result.error };
   recordHistory(result.membership.institutionId, `${result.person.name} joined.`);
   setSessionCookies(result.token, result.membership.institutionId);
-  redirect("/home");
+  const institution = await mockIdentityProvider.getInstitution(result.membership.institutionId);
+  redirect(institution ? await resolveLandingPath(result.person.id, institution.type) : "/home");
+}
+
+/** Cancel a pending invitation — it becomes invalid immediately, even if
+ *  the invitee still has the link open in a tab somewhere. */
+export async function cancelInvitationAction(membershipId: string): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+  if (!ctx.permissions.has("members.invite")) {
+    return { ok: false, error: "Inviting new people isn't your responsibility here." };
+  }
+
+  const memberships = await mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id);
+  const target = memberships.find((m) => m.id === membershipId);
+  if (!target) return { ok: false, error: "Invitation not found." };
+
+  const result = await mockIdentityProvider.cancelInvitation(membershipId);
+  if ("error" in result) return { ok: false, error: result.error };
+
+  const person = await mockIdentityProvider.getPerson(target.personId);
+  recordHistory(ctx.institution.id, `${ctx.person.name} cancelled ${person?.name ?? "an"} invitation.`);
+  return { ok: true };
 }

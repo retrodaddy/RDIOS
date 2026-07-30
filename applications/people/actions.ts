@@ -253,11 +253,19 @@ export async function offboardPersonAction(formData: FormData): Promise<ActionRe
   if (!personId) return { ok: false, error: "Missing person id." };
 
   const result = await mockPeopleProvider.offboardPerson(ctx.institution.id, personId);
+  // Offboarding must mean the relationship is over, not just that the
+  // Positions and Affiliations sitting on top of it are — closing this gap
+  // was the single most important finding of the Product Validation Sprint:
+  // an offboarded person could still sign in and read the institution.
+  // Ending the Membership itself is what actually revokes access, since
+  // every request re-resolves identity from a fresh, active-only lookup
+  // (os/identity/session.ts) rather than trusting anything cached.
+  await mockIdentityProvider.endMembership(ctx.institution.id, personId);
   const offboardedName =
     personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
   recordHistory(
     ctx.institution.id,
-    `${ctx.person.name} offboarded ${offboardedName} (${result.closedPositions} position(s), ${result.closedAffiliations} affiliation(s) closed).`
+    `${ctx.person.name} offboarded ${offboardedName} (${result.closedPositions} position(s), ${result.closedAffiliations} affiliation(s) closed) — their access to ${ctx.institution.name} has ended.`
   );
   return { ok: true };
 }

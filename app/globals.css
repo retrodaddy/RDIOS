@@ -2,42 +2,190 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   RDIOS Design Tokens — Implementation Sprint 2
+
+   This block is the one source of truth the frozen Visual Design System v1
+   asked for. Every color, motion duration, and easing curve a component
+   needs comes from here — nothing below should hardcode a raw color value
+   or a raw millisecond number. Radius and spacing deliberately reuse
+   Tailwind's own default scale rather than reinventing a parallel one (it
+   is already one consistent, multiple-of-a-base-unit scale — the thing the
+   frozen document actually asks for — so a second, competing scale would
+   only add confusion). The convention: cards and panels use `rounded-2xl`,
+   ordinary controls use `rounded-xl` or `rounded-lg`, chips and badges use
+   `rounded-full`. Applied consistently across components/ui/*.
+
+   Every color value below was run through an actual WCAG contrast script
+   this sprint (Implementation Sprint 2.5 §4 — not eyeballed, computed):
+   text/muted/dim against Base and Surface, on-accent against Accent,
+   every semantic color against Base and against its own 10%-tinted Badge
+   background, in every one of the six theme renderings (Slate's light and
+   dark registers counted separately). Several values (dim, the semantic
+   colors, Light and Forest's accent-bright) were darkened from their
+   Sprint 2 originals specifically because that script found real,
+   measured failures — not a hypothetical audit. One category of check
+   still fails everywhere by design and is accepted, not fixed: the
+   hairline `border` color against `bg` falls short of the 3:1 non-text
+   UI-component minimum in every theme, because the frozen Visual Design
+   System explicitly calls for a quiet hairline divider, not a assertive
+   one. Anything that actually needs to communicate through its border —
+   a focused input, in particular — uses the Accent color at that moment
+   instead, which does pass. See the Sprint 2.5 report for the full
+   pass/fail table.
+   ========================================================================== */
+
 :root {
+  /* Motion — durations and easing, per the frozen Motion section. Micro
+     interactions are fast enough to read as instant; larger transitions
+     (drawers, panels) run slightly longer so the eye can track what moved.
+     Easing carries meaning: entering settles (ease-out), leaving is
+     dismissed (ease-in) — never the same curve for both directions. */
+  --os-duration-fast: 180ms;
+  --os-duration-base: 300ms;
+  --os-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --os-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+
+  /* Density — see Shell.tsx and the density rules below. */
+  --os-density-scale: 1;
+}
+:root[data-density="compact"] {
+  --os-density-scale: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   Theme 1 — Slate (Default). Cool neutral grays, indigo-violet accent.
+   Follows the system's own light/dark preference automatically — the one
+   theme built for someone who has never thought about themes.
+   -------------------------------------------------------------------------- */
+:root[data-theme="slate"] {
   --os-bg: 250 250 249;
   --os-surface: 244 244 242;
+  --os-elevated: 255 255 255;
   --os-border: 226 226 222;
   --os-text: 28 28 26;
   --os-muted: 96 96 92;
-  --os-dim: 140 140 134;
+  --os-dim: 104 104 98;
   --os-accent: 79 70 229;
   --os-accent-bright: 99 91 244;
   --os-on-accent: 255 255 255;
+  --os-success: 16 116 55;
+  --os-warning: 163 75 8;
+  --os-error: 185 28 28;
+  --os-info: 29 78 216;
 }
-
-:root[data-theme="dark"] {
-  --os-bg: 15 15 17;
-  --os-surface: 24 24 27;
-  --os-border: 40 40 44;
-  --os-text: 237 237 235;
-  --os-muted: 168 168 164;
-  --os-dim: 118 118 114;
-  --os-accent: 129 122 245;
-  --os-accent-bright: 150 143 255;
-  --os-on-accent: 15 15 17;
-}
-
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root[data-theme="slate"] {
     --os-bg: 15 15 17;
     --os-surface: 24 24 27;
+    --os-elevated: 32 32 36;
     --os-border: 40 40 44;
     --os-text: 237 237 235;
     --os-muted: 168 168 164;
-    --os-dim: 118 118 114;
+    --os-dim: 145 145 141;
     --os-accent: 129 122 245;
     --os-accent-bright: 150 143 255;
     --os-on-accent: 15 15 17;
+    --os-success: 74 222 128;
+    --os-warning: 251 191 36;
+    --os-error: 248 113 113;
+    --os-info: 96 165 250;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Theme 2 — Light. Deliberately bright and high-key for offices with real
+   ambient daylight — cleaner, warmer whites than Slate, more clearly
+   defined borders (subtle low-contrast borders wash out under bright
+   ambient light), a confident, familiar blue accent.
+   -------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  --os-bg: 255 255 255;
+  --os-surface: 248 249 251;
+  --os-elevated: 255 255 255;
+  --os-border: 210 214 220;
+  --os-text: 17 24 39;
+  --os-muted: 71 85 105;
+  --os-dim: 98 108 124;
+  --os-accent: 37 99 235;
+  --os-accent-bright: 29 90 220;
+  --os-on-accent: 255 255 255;
+  --os-success: 16 116 55;
+  --os-warning: 163 75 8;
+  --os-error: 185 28 28;
+  --os-info: 29 78 216;
+}
+
+/* --------------------------------------------------------------------------
+   Theme 3 — Dark. Comfort-first, tuned for the four-hour case, not the
+   four-minute screenshot. Warm dark grays — deliberately never pure black,
+   which is itself a source of eye fatigue over long sessions — with a
+   muted, lower-saturation teal accent rather than anything neon.
+   -------------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  --os-bg: 26 24 22;
+  --os-surface: 36 33 30;
+  --os-elevated: 46 42 38;
+  --os-border: 58 54 49;
+  --os-text: 232 228 223;
+  --os-muted: 176 168 158;
+  --os-dim: 150 142 131;
+  --os-accent: 33 130 122;
+  --os-accent-bright: 56 178 169;
+  --os-on-accent: 255 255 255;
+  --os-success: 74 222 128;
+  --os-warning: 251 191 36;
+  --os-error: 248 113 113;
+  --os-info: 96 165 250;
+}
+
+/* --------------------------------------------------------------------------
+   Theme 4 — Forest. Warm, organic, human — a free choice for any
+   institution, never assumed from institution type. Cream-toned base,
+   warm yellow-brown neutrals rather than Slate's cool grays, a genuine
+   moss-green accent. Ships this sprint as one register (its light,
+   cream rendering) — see the Sprint 2 report for the honest note that an
+   adaptive dark rendering, described in the frozen document, wasn't
+   built yet.
+   -------------------------------------------------------------------------- */
+:root[data-theme="forest"] {
+  --os-bg: 250 247 237;
+  --os-surface: 243 238 222;
+  --os-elevated: 255 253 245;
+  --os-border: 223 213 188;
+  --os-text: 42 38 28;
+  --os-muted: 107 97 76;
+  --os-dim: 120 108 84;
+  --os-accent: 63 122 77;
+  --os-accent-bright: 58 110 70;
+  --os-on-accent: 255 255 255;
+  --os-success: 12 110 50;
+  --os-warning: 151 69 6;
+  --os-error: 185 28 28;
+  --os-info: 29 78 216;
+}
+
+/* --------------------------------------------------------------------------
+   Theme 5 — Midnight Executive. Premium, high-contrast, built for founders
+   and finance. True near-black base, crisp near-white text, a muted gold
+   accent spent sparingly — the one theme where restraint in *where* the
+   accent appears matters as much as the accent itself.
+   -------------------------------------------------------------------------- */
+:root[data-theme="midnight"] {
+  --os-bg: 8 8 9;
+  --os-surface: 16 16 18;
+  --os-elevated: 24 24 27;
+  --os-border: 38 38 42;
+  --os-text: 245 245 244;
+  --os-muted: 176 176 172;
+  --os-dim: 120 120 116;
+  --os-accent: 178 140 74;
+  --os-accent-bright: 201 163 94;
+  --os-on-accent: 8 8 9;
+  --os-success: 74 222 128;
+  --os-warning: 251 191 36;
+  --os-error: 248 113 113;
+  --os-info: 96 165 250;
 }
 
 * {
@@ -47,4 +195,175 @@
 body {
   background-color: rgb(var(--os-bg));
   color: rgb(var(--os-text));
+}
+
+/* Personal Workspace Preferences (Implementation Sprint 1 §10). Font size
+   scales from the html root, so Tailwind's rem-based type scale carries it
+   through the whole app without every component needing to know about it. */
+:root[data-font-size="small"] {
+  font-size: 15px;
+}
+:root[data-font-size="large"] {
+  font-size: 18px;
+}
+
+/* Reduce motion — a blunt, honest instrument: every transition and
+   animation stops, everywhere, rather than a curated per-component list
+   that quietly misses new ones as the product grows. */
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   Motion — drawers, dialogs, backdrops (Implementation Sprint 2 §6).
+   Entering decelerates into place (ease-out, "arriving, settling").
+   Nothing here uses bounce, overshoot, or any entertainment-register
+   motion — the frozen document's explicit "never" list.
+   ========================================================================== */
+@keyframes os-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes os-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes os-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes os-slide-in-bottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes os-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes os-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.os-anim-backdrop {
+  animation: os-fade-in var(--os-duration-base) var(--os-ease-out);
+}
+.os-anim-drawer-right {
+  animation: os-slide-in-right var(--os-duration-base) var(--os-ease-out);
+}
+.os-anim-drawer-left {
+  animation: os-slide-in-left var(--os-duration-base) var(--os-ease-out);
+}
+.os-anim-sheet {
+  animation: os-slide-in-bottom var(--os-duration-base) var(--os-ease-out);
+}
+.os-anim-dialog {
+  animation: os-scale-in var(--os-duration-base) var(--os-ease-out);
+}
+.os-skeleton {
+  background-color: rgb(var(--os-border));
+  border-radius: 0.75rem;
+  animation: os-skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   Tables (Implementation Sprint 2 §11). No real data table exists in RDIOS
+   yet (Money, Reports, and financial tables are M7+ work) — this class is
+   defined now so the first one built inherits the frozen rule automatically
+   instead of a new table inventing its own. No zebra striping, a hairline
+   divider between rows, a hover highlight, tabular figures throughout.
+   ========================================================================== */
+.os-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.os-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: rgb(var(--os-bg));
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgb(var(--os-dim));
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgb(var(--os-border));
+}
+.os-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgb(var(--os-border));
+}
+.os-table tbody tr:hover {
+  background-color: rgb(var(--os-surface) / 0.6);
+}
+.os-table td.os-table-num,
+.os-table th.os-table-num {
+  text-align: right;
+}
+
+/* ==========================================================================
+   Focus visibility (Implementation Sprint 2.5 §6/§7/§12). Found this
+   sprint: nearly every input, select, and textarea in RDIOS pairs
+   `outline-none` with `focus:border-accent` — a border-color change
+   alone, with the browser's own focus outline explicitly removed and
+   nothing of equivalent visibility put in its place. The frozen
+   document's own accessibility section is explicit that focus indicators
+   are "never suppressed for aesthetic reasons." This is a genuine,
+   global fix rather than a per-component one: every focusable control
+   gets a real, visible outline back via `:focus-visible` (keyboard/
+   programmatic focus only, not every mouse click), layered on top of
+   the existing border-color change rather than replacing it.
+   ========================================================================== */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgb(var(--os-accent));
+  outline-offset: 2px;
 }

@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🟡 Living baseline — a product review, not architecture. No code changed to produce this; every finding below is cited to an exact file and line, or to a live click-through performed this pass. Nothing here proposes new engines, renames frozen architecture, or touches RDE. This document is the baseline every future RDIOS screen gets checked against before it ships.
 
 # RDIOS Product Readiness Review v1

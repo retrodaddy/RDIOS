@@ -3,6 +3,7 @@ import { requireIdentity } from "@/os/identity/session";
 import { mockIdentityProvider } from "@/os/identity/mock-provider";
 import { mockPeopleProvider } from "@/applications/people/mock-provider";
 import { CreatePositionCard } from "@/components/os/CreatePositionCard";
+import { PositionsTable, type PositionRow } from "@/components/os/PositionsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,18 @@ export default async function PeoplePage() {
       const holder = currentHolder(p.id);
       return holder?.personId === personId;
     });
+
+  const positionRows: PositionRow[] = positions.map((position) => {
+    const holder = currentHolder(position.id);
+    const reportsTo = positions.filter((p) => position.reportsToPositionIds.includes(p.id));
+    return {
+      id: position.id,
+      name: position.name,
+      reportsTo: reportsTo.length > 0 ? `Reports to ${reportsTo.map((p) => p.name).join(", ")}` : "Top-level",
+      holderName: holder ? personName(holder.personId) : null,
+      holderPersonId: holder?.personId ?? null,
+    };
+  });
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
@@ -84,29 +97,9 @@ export default async function PeoplePage() {
             />
           </div>
         </div>
-        {positions.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-border bg-surface/40 px-5 py-6 text-sm text-muted">
-            No positions yet — add one to start appointing people to roles.
-          </p>
-        ) : (
-          <ul className="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border">
-            {positions.map((position) => {
-              const holder = currentHolder(position.id);
-              const reportsTo = positions.filter((p) => position.reportsToPositionIds.includes(p.id));
-              return (
-                <li key={position.id} className="flex items-center justify-between gap-4 px-5 py-3.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-text">{position.name}</p>
-                    <p className="truncate text-xs text-dim">
-                      {reportsTo.length > 0 ? `Reports to ${reportsTo.map((p) => p.name).join(", ")}` : "Top-level"}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs text-muted">{holder ? personName(holder.personId) : "Unfilled"}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <div className="mt-3">
+          <PositionsTable rows={positionRows} />
+        </div>
       </section>
     </div>
   );

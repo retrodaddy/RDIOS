@@ -12,6 +12,9 @@ import {
 import { APPOINTMENT_TYPES, APPOINTMENT_TYPE_LABELS } from "@/applications/people/types";
 import type { AppointmentType, Position, PositionHolder } from "@/applications/people/types";
 import { PERMISSIONS, PERMISSION_LABELS, PERMISSION_DESCRIPTIONS, type PermissionKey } from "@/engines/authority/types";
+import { getPermissionLabel, getPermissionDescription } from "@/os/institution/terminology";
+import type { InstitutionType } from "@/os/identity/types";
+import { Button } from "@/components/ui";
 
 export type RosterPerson = { id: string; name: string; email: string; status: "active" | "invited" };
 
@@ -30,6 +33,7 @@ export function PositionSidePanel({
   roster,
   canManage,
   isFounder,
+  institutionType,
   onClose,
 }: {
   position: Position;
@@ -38,6 +42,7 @@ export function PositionSidePanel({
   roster: RosterPerson[];
   canManage: boolean;
   isFounder: boolean;
+  institutionType: InstitutionType;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -47,6 +52,12 @@ export function PositionSidePanel({
   const [appointing, setAppointing] = useState(false);
   const [personId, setPersonId] = useState("");
   const [appointmentType, setAppointmentType] = useState<AppointmentType>("permanent");
+  const [savedField, setSavedField] = useState<"name" | "description" | null>(null);
+
+  const flashSaved = (field: "name" | "description") => {
+    setSavedField(field);
+    setTimeout(() => setSavedField((f) => (f === field ? null : f)), 1600);
+  };
 
   const holder = holders.find((h) => !h.endedAt) ?? null;
   const holderPerson = holder ? roster.find((p) => p.id === holder.personId) : null;
@@ -57,6 +68,7 @@ export function PositionSidePanel({
     if (!canManage || name.trim() === position.name) return;
     start(async () => {
       await updatePositionDetailsAction(position.id, { name: name.trim() });
+      flashSaved("name");
       router.refresh();
     });
   };
@@ -65,6 +77,7 @@ export function PositionSidePanel({
     if (!canManage || (description.trim() || null) === position.description) return;
     start(async () => {
       await updatePositionDetailsAction(position.id, { description: description.trim() || null });
+      flashSaved("description");
       router.refresh();
     });
   };
@@ -111,8 +124,8 @@ export function PositionSidePanel({
 
   return (
     <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-modal="true" aria-label={position.name}>
-      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-sm flex-col overflow-y-auto border-l border-border bg-bg p-6 shadow-2xl">
+      <div className="os-anim-backdrop absolute inset-0 bg-black/20" onClick={onClose} />
+      <div className="os-anim-drawer-right relative flex h-full w-full max-w-sm flex-col overflow-y-auto border-l border-border bg-elevated p-6">
         <div className="flex items-start justify-between gap-3">
           <input
             value={name}
@@ -129,6 +142,7 @@ export function PositionSidePanel({
         <div className="mt-1 flex items-center gap-1.5 text-xs">
           <span className={`h-1.5 w-1.5 rounded-full ${holder ? "bg-accent" : "bg-dim"}`} />
           <span className={holder ? "text-dim" : "text-accent-bright"}>{holder ? "Filled" : "Vacant"}</span>
+          {savedField === "name" && <span className="text-dim">· Saved</span>}
         </div>
 
         <textarea
@@ -140,6 +154,7 @@ export function PositionSidePanel({
           rows={2}
           className="mt-4 w-full resize-none rounded-xl border border-border bg-surface/40 px-3 py-2 text-sm text-text outline-none focus:border-accent disabled:opacity-70"
         />
+        {savedField === "description" && <p className="mt-1 text-xs text-dim">Saved</p>}
 
         <section className="mt-6">
           <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Holder</h3>
@@ -186,17 +201,12 @@ export function PositionSidePanel({
                 ))}
               </select>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={appoint}
-                  disabled={pending || !personId}
-                  className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
+                <Button size="sm" onClick={appoint} disabled={pending || !personId}>
                   Appoint
-                </button>
-                <button type="button" onClick={() => setAppointing(false)} className="text-xs text-dim hover:text-text">
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setAppointing(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -270,8 +280,12 @@ export function PositionSidePanel({
                     className="mt-0.5 disabled:cursor-not-allowed"
                   />
                   <label htmlFor={`resp-${position.id}-${key}`} className="min-w-0">
-                    <p className={`text-sm ${checked ? "text-text" : "text-dim"}`}>{PERMISSION_LABELS[key]}</p>
-                    <p className="text-xs text-dim">{PERMISSION_DESCRIPTIONS[key]}</p>
+                    <p className={`text-sm ${checked ? "text-text" : "text-dim"}`}>
+                      {getPermissionLabel(institutionType, key, PERMISSION_LABELS[key])}
+                    </p>
+                    <p className="text-xs text-dim">
+                      {getPermissionDescription(institutionType, key, PERMISSION_DESCRIPTIONS[key])}
+                    </p>
                   </label>
                 </li>
               );

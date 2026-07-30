@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { appointHolderAction, endHolderAction } from "@/applications/people/actions";
 import { APPOINTMENT_TYPES, APPOINTMENT_TYPE_LABELS } from "@/applications/people/types";
 import type { AppointmentType, Position, PositionHolder } from "@/applications/people/types";
+import { Button } from "@/components/ui";
 
 type Holding = { holder: PositionHolder; position: Position | null };
 
@@ -60,15 +61,15 @@ export function AppointHolderCard({
     <section className="mt-10">
       <div className="flex items-center justify-between">
         <h2 className="text-[0.7rem] uppercase tracking-[0.2em] text-dim">Positions</h2>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setOpen(true)}
           disabled={!canManage}
           title={canManage ? undefined : "Appointing people isn't your responsibility here."}
-          className="rounded-xl border border-border bg-surface/40 px-3 py-1.5 text-xs text-text transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface/40"
         >
           Appoint
-        </button>
+        </Button>
       </div>
 
       {current.length === 0 && past.length === 0 ? (
@@ -105,8 +106,8 @@ export function AppointHolderCard({
 
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Appoint to a position">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-bg p-6 shadow-2xl sm:rounded-2xl">
+          <div className="os-anim-backdrop absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="os-anim-sheet relative w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-elevated p-6 sm:rounded-2xl">
             <p className="font-display text-lg">Appoint to a position</p>
 
             <select
@@ -136,23 +137,18 @@ export function AppointHolderCard({
             </select>
 
             {err && (
-              <p className="mt-2 text-sm text-red-500" role="alert">
+              <p className="mt-2 text-sm text-error" role="alert">
                 {err}
               </p>
             )}
 
             <div className="mt-4 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={appoint}
-                disabled={pending || !positionId}
-                className="rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
+              <Button onClick={appoint} disabled={pending || !positionId}>
                 {pending ? "Appointing…" : "Appoint"}
-              </button>
-              <button type="button" onClick={() => setOpen(false)} className="ml-auto text-xs text-dim hover:text-text">
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)} className="ml-auto">
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>

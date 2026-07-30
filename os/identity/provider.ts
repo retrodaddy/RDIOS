@@ -32,14 +32,28 @@ export interface IdentityProvider {
   }): Promise<{ institution: Institution; person: Person; membership: InstitutionMembership; token: string }>;
 
   /** Invite — creates (or reuses) a Person by email and an "invited"
-   *  Membership. Does not create a session; the invitee accepts separately. */
+   *  Membership, expiring after a fixed window if never accepted. Does not
+   *  create a session; the invitee accepts separately. */
   inviteMembership(institutionId: string, email: string, name: string): Promise<InstitutionMembership>;
 
   /** Accept an invitation — moves the Membership to "active" and returns a
-   *  session token, mirroring the moment a real OAuth callback would. */
+   *  session token, mirroring the moment a real OAuth callback would.
+   *  Fails closed if the invitation was already accepted, cancelled, or
+   *  has expired (Implementation Sprint 1, Identity & Access). */
   acceptInvitation(
     membershipId: string
   ): Promise<{ person: Person; membership: InstitutionMembership; token: string } | { error: string }>;
+
+  /** Cancel a still-pending invitation — the membership becomes invalid
+   *  immediately; the link stops working even if the invitee has it open. */
+  cancelInvitation(membershipId: string): Promise<{ ok: true } | { error: string }>;
+
+  /** Ends a person's membership in this specific institution outright —
+   *  the access-revoking half of offboarding. Distinct from ending a
+   *  Position or Affiliation (applications/people): this is what makes
+   *  signing in to this institution impossible again, not just empty of
+   *  responsibility. Idempotent. */
+  endMembership(institutionId: string, personId: string): Promise<void>;
 
   /** Dev-mode login only — in the mock provider, "logging in" as an
    *  existing person by email. A real provider replaces this with real

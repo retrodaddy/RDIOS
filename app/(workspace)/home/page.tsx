@@ -37,7 +37,7 @@ export default async function HomePage() {
       </h1>
       <p className="mt-3 text-lg text-muted">
         {actNow.length === 0
-          ? "The institution is calm this morning."
+          ? `The institution is calm this ${partOfDay()}.`
           : `${actNow.length} ${actNow.length === 1 ? "thing needs" : "things need"} you.`}
       </p>
 

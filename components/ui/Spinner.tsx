@@ -1,0 +1,20 @@
+/** Reserved for actions with no predictable shape — a button's own pending
+ *  state, chiefly — per Implementation Sprint 2 §9. Everywhere the incoming
+ *  layout IS known, use Skeleton instead. Respects the reduce-motion
+ *  preference through the same global CSS rule every other animation does
+ *  (app/globals.css), so it never needs its own special case. */
+export function Spinner({ size = 14, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className={`animate-spin ${className}`}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}

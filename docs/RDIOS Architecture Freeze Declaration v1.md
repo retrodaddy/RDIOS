@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🟢 Frozen v1. Not a new design document — the formal act of closing the design phase, in the same spirit as RDE's own Workforce Architecture Freeze Determination. Governs everything that follows: Build, Test, Verify, Polish, Ship.
 
 # RDIOS Architecture Freeze Declaration v1

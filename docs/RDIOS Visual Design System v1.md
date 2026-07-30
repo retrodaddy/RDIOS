@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🟢 Frozen v1 — the visual constitution of RDIOS. A third document alongside the Engineering Constitution (what may be built) and the Experience Principles (how it should feel and behave): this one governs how it looks and communicates. No future screen invents its own visual style; every application inherits this system. Pure product design — no code, no CSS, no components, no mockups, no architecture changes. RDE and the current RDIOS prototype are unmodified by this document.
 
 # RDIOS Visual Design System v1

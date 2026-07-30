@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🟢 Frozen v1 — per RDIOS Architecture Freeze Declaration v1. Presumed correct until implementation surfaces a genuinely new domain requirement; extended, not reopened. RDE (`G:\WEBSITES - RETRO DADDY\Retro Daddy Website`) is referenced throughout as the proven first implementation; nothing here modifies it, imports it, or depends on it at runtime.
 
 # RDIOS Product Foundation v1

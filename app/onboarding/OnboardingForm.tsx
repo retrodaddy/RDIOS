@@ -5,6 +5,7 @@ import { createInstitutionAction } from "@/os/identity/actions";
 import { INSTITUTION_TYPES, INSTITUTION_TYPE_LABELS } from "@/os/identity/types";
 import type { InstitutionType } from "@/os/identity/types";
 import { getTerminology } from "@/os/institution/terminology";
+import { Button } from "@/components/ui";
 
 export function OnboardingForm() {
   const [institutionName, setInstitutionName] = useState("");
@@ -68,19 +69,18 @@ export function OnboardingForm() {
       </div>
 
       {err && (
-        <p className="text-sm text-red-500" role="alert">
+        <p className="text-sm text-error" role="alert">
           {err}
         </p>
       )}
 
-      <button
-        type="button"
+      <Button
         onClick={submit}
         disabled={pending || !institutionName.trim() || !founderName.trim() || !founderEmail.trim()}
-        className="w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="w-full"
       >
         {pending ? "Setting up…" : "Create institution"}
-      </button>
+      </Button>
     </div>
   );
 }

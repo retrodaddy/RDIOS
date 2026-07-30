@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: ⚪ Folded into RDIOS Institution Setup Experience v2 — accepted in full; its three conclusions are now written directly into v2's argument rather than kept as a separate appendix. Preserved here as the reasoning trail. No code, no UI, no architecture changes; this document never itself froze anything.
 
 # RDIOS Institution Setup Experience — Reconsideration v1

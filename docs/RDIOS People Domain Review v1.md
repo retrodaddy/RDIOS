@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🟢 Frozen v1 — per RDIOS Architecture Freeze Declaration v1. Extends the RDIOS Product Foundation v1's §3 (Tenant Architecture) and §4 (Application Architecture: People). Builds directly on RDE's own settled Workforce reasoning rather than re-deriving it — RDE's Position/Affiliation/Capability split was arrived at through genuine domain-driven reversal (not implementation convenience) and is carried forward here as precedent, generalized for multi-tenancy.
 
 # RDIOS People Domain Review v1

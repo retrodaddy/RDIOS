@@ -20,25 +20,78 @@ export type NavDestination = {
   label: string;
   question: string;
   href: string;
+  /** What belongs here and why it matters — one calm sentence, read by
+   *  EmptyApplication until the destination has real content of its own
+   *  (Implementation Sprint 2 §8). Distinct per destination; never
+   *  implementation language. */
+  description: string;
 };
 
-type NavDestinationDefault = { key: string; defaultLabel: string; defaultQuestion: string; href: string };
+type NavDestinationDefault = {
+  key: string;
+  defaultLabel: string;
+  defaultQuestion: string;
+  defaultDescription: string;
+  href: string;
+};
 
 const NAV_DEFAULTS: NavDestinationDefault[] = [
-  { key: "home", defaultLabel: "Home", defaultQuestion: "What needs my attention?", href: "/home" },
-  { key: "people", defaultLabel: "People", defaultQuestion: "Who makes up this institution?", href: "/people" },
-  { key: "work", defaultLabel: "Work", defaultQuestion: "What work exists?", href: "/work" },
-  { key: "money", defaultLabel: "Money", defaultQuestion: "What is the financial state?", href: "/money" },
-  { key: "customers", defaultLabel: "Customers", defaultQuestion: "Who are we serving?", href: "/customers" },
-  { key: "projects", defaultLabel: "Projects", defaultQuestion: "What are we delivering?", href: "/projects" },
-  { key: "documents", defaultLabel: "Documents", defaultQuestion: "What institutional knowledge exists?", href: "/documents" },
-  { key: "reports", defaultLabel: "Reports", defaultQuestion: "What should leadership understand?", href: "/reports" },
+  { key: "home", defaultLabel: "Home", defaultQuestion: "What needs my attention?", defaultDescription: "", href: "/home" },
+  {
+    key: "people",
+    defaultLabel: "People",
+    defaultQuestion: "Who makes up this institution?",
+    defaultDescription: "",
+    href: "/people",
+  },
+  { key: "work", defaultLabel: "Work", defaultQuestion: "What work exists?", defaultDescription: "", href: "/work" },
+  {
+    key: "money",
+    defaultLabel: "Money",
+    defaultQuestion: "What is the financial state?",
+    defaultDescription:
+      "What's coming in, what's going out, and what's been committed — every expense, every transfer, every ledger entry that touches this institution's real position.",
+    href: "/money",
+  },
+  {
+    key: "customers",
+    defaultLabel: "Customers",
+    defaultQuestion: "Who are we serving?",
+    defaultDescription:
+      "Every person or organization on the receiving end of this institution's work — who they are, what they've been given, and what they're still owed.",
+    href: "/customers",
+  },
+  {
+    key: "projects",
+    defaultLabel: "Projects",
+    defaultQuestion: "What are we delivering?",
+    defaultDescription:
+      "The real efforts underway right now — each with a beginning, an end, and someone responsible for getting from one to the other.",
+    href: "/projects",
+  },
+  {
+    key: "documents",
+    defaultLabel: "Documents",
+    defaultQuestion: "What institutional knowledge exists?",
+    defaultDescription:
+      "Agreements, policies, records — the paper trail an institution accumulates and needs to be able to find again, not just store.",
+    href: "/documents",
+  },
+  {
+    key: "reports",
+    defaultLabel: "Reports",
+    defaultQuestion: "What should leadership understand?",
+    defaultDescription:
+      "The handful of numbers and trends worth a founder's attention without having to go looking for them — a summary, not a spreadsheet.",
+    href: "/reports",
+  },
 ];
 
 const SETTINGS_DEFAULT: NavDestinationDefault = {
   key: "settings",
   defaultLabel: "Settings",
   defaultQuestion: "How is this institution configured?",
+  defaultDescription: "",
   href: "/settings",
 };
 
@@ -49,6 +102,7 @@ function resolve(d: NavDestinationDefault, institutionType: InstitutionType): Na
     href: d.href,
     label: t.navLabels[d.key] ?? d.defaultLabel,
     question: t.navQuestions[d.key] ?? d.defaultQuestion,
+    description: t.navDescriptions[d.key] ?? d.defaultDescription,
   };
 }
 

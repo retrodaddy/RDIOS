@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🟢 Frozen v1 — the philosophical constitution of RDIOS. Every other frozen document — Product Foundation, People Domain, Audit Engine, Experience Principles, Institution Setup, Visual Design — explains how RDIOS works or how it should feel. This one explains why it should exist at all. Where a future decision conflicts with this document, this document wins, including over software convenience. Pure philosophy — no code, no UI, no architecture, no diagrams.
 
 # RDIOS Product Philosophy v1

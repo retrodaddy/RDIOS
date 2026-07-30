@@ -1,3 +1,5 @@
+> **ARUMBU is the product name introduced after this document was written.** Everything below was written under, and refers throughout to, the internal engineering name "RDIOS." That reasoning is preserved exactly as frozen — nothing in this document has been altered or renamed. "RDIOS" remains the correct internal/engineering term for the underlying platform this document describes; "ARUMBU" is what that platform is now called on every customer-facing screen.
+
 Status: 🔵 Strategy review — no code, no implementation, no changes to any frozen document. Extends the frozen Product Foundation's layering to the ecosystem scale: multiple products, not just multiple institutions inside one product. Nothing here is architecture yet; it's the reasoning that future architecture reviews (when Tamizhi, the Developer Platform, or Marketplace actually approach) should be checked against.
 
 # RDIOS Platform Integration Strategy v1

@@ -19,13 +19,36 @@ function store(): Store {
   return g.__rdiosHistoryStore;
 }
 
-export function recordHistory(institutionId: string, summary: string): void {
+export function recordHistory(
+  institutionId: string,
+  summary: string,
+  subject?: { subjectType: string; subjectId: string }
+): void {
   const s = store();
   const entries = s.get(institutionId) ?? [];
-  entries.unshift({ id: randomUUID(), summary, occurredAt: new Date().toISOString() });
+  entries.unshift({
+    id: randomUUID(),
+    summary,
+    occurredAt: new Date().toISOString(),
+    subjectType: subject?.subjectType,
+    subjectId: subject?.subjectId,
+  });
   s.set(institutionId, entries);
 }
 
 export async function listHistory(institutionId: string): Promise<HistoryEntry[]> {
   return store().get(institutionId) ?? [];
+}
+
+/** A Record's own Timeline — the same institution-scoped History, filtered
+ *  to one subject. Nothing about this is a separate store; it's the exact
+ *  read-side counterpart Question 5 of the Universal Record Model names:
+ *  Records emit events, History is the filtered view over them. */
+export async function listHistoryForSubject(
+  institutionId: string,
+  subjectType: string,
+  subjectId: string
+): Promise<HistoryEntry[]> {
+  const entries = store().get(institutionId) ?? [];
+  return entries.filter((e) => e.subjectType === subjectType && e.subjectId === subjectId);
 }

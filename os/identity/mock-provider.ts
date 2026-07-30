@@ -39,6 +39,12 @@ function findPersonByEmail(email: string): Person | undefined {
   return [...store().people.values()].find((p) => p.email.toLowerCase() === target);
 }
 
+/** An invitation left unaccepted this long can no longer be accepted
+ *  (Implementation Sprint 1, Identity & Access — "expired invitations
+ *  cannot be used"). A week is generous enough that a real invitee never
+ *  hits it by ordinary delay, while still meaning something. */
+const INVITATION_LIFETIME_DAYS = 7;
+
 export const mockIdentityProvider: IdentityProvider = {
   async getPersonBySessionToken(token) {
     const personId = store().sessions.get(token);
@@ -86,6 +92,7 @@ export const mockIdentityProvider: IdentityProvider = {
       personId: person.id,
       status: "active",
       createdAt: new Date().toISOString(),
+      expiresAt: null,
     };
     s.institutions.set(institution.id, institution);
     s.people.set(person.id, person);
@@ -105,13 +112,16 @@ export const mockIdentityProvider: IdentityProvider = {
       s.people.set(person.id, person);
     }
     const existing = [...s.memberships.values()].find((m) => m.personId === person!.id && m.institutionId === institutionId);
-    if (existing) return existing;
+    if (existing && existing.status !== "ended") return existing;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + INVITATION_LIFETIME_DAYS * 24 * 60 * 60 * 1000).toISOString();
     const membership: InstitutionMembership = {
-      id: randomUUID(),
+      id: existing?.id ?? randomUUID(),
       institutionId,
       personId: person.id,
       status: "invited",
-      createdAt: new Date().toISOString(),
+      createdAt: now.toISOString(),
+      expiresAt,
     };
     s.memberships.set(membership.id, membership);
     return membership;
@@ -121,7 +131,13 @@ export const mockIdentityProvider: IdentityProvider = {
     const s = store();
     const membership = s.memberships.get(membershipId);
     if (!membership) return { error: "Invitation not found." };
+    if (membership.status === "active") return { error: "This invitation has already been accepted." };
+    if (membership.status !== "invited") return { error: "This invitation is no longer valid." };
+    if (membership.expiresAt && new Date(membership.expiresAt).getTime() < Date.now()) {
+      return { error: "This invitation has expired — ask whoever invited you to send a new one." };
+    }
     membership.status = "active";
+    membership.expiresAt = null;
     const person = s.people.get(membership.personId);
     if (!person) return { error: "Person not found." };
     const token = randomUUID();
@@ -129,9 +145,27 @@ export const mockIdentityProvider: IdentityProvider = {
     return { person, membership, token };
   },
 
+  async cancelInvitation(membershipId) {
+    const s = store();
+    const membership = s.memberships.get(membershipId);
+    if (!membership) return { error: "Invitation not found." };
+    if (membership.status !== "invited") return { error: "This invitation is no longer pending." };
+    membership.status = "ended";
+    return { ok: true };
+  },
+
+  async endMembership(institutionId, personId) {
+    const s = store();
+    const membership = [...s.memberships.values()].find(
+      (m) => m.institutionId === institutionId && m.personId === personId
+    );
+    if (!membership || membership.status === "ended") return;
+    membership.status = "ended";
+  },
+
   async createSessionForEmail(email) {
     const person = findPersonByEmail(email);
-    if (!person) return { error: "No RDIOS account found for that email yet — ask an admin to invite you, or create a new institution." };
+    if (!person) return { error: "No ARUMBU account found for that email yet — ask an admin to invite you, or create a new institution." };
     const token = randomUUID();
     store().sessions.set(token, person.id);
     return { token };

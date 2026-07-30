@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { inviteAction } from "@/os/identity/actions";
+import { Button, useToast } from "@/components/ui";
 
 export function InviteForm({ canInvite }: { canInvite: boolean }) {
+  const router = useRouter();
+  const { notify } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pending, start] = useTransition();
@@ -20,10 +24,22 @@ export function InviteForm({ canInvite }: { canInvite: boolean }) {
       fd.set("name", name);
       fd.set("email", email);
       const r = await inviteAction(fd);
-      if (!r.ok) return setErr(r.error ?? "Could not send the invitation.");
+      if (!r.ok) {
+        setErr(r.error ?? "Could not send the invitation.");
+        notify("error", r.error ?? "Could not send the invitation.");
+        return;
+      }
+      const invitedName = name || email;
       setName("");
       setEmail("");
       setLink(`${window.location.origin}/invite/${r.membershipId}`);
+      notify("success", `${invitedName} invited — link ready below.`);
+      // The new invite needs to show up in Pending invitations right away —
+      // without this, a founder inviting several people in one sitting
+      // would see the link but not the person until they happened to
+      // reload, exactly the "does this follow through" trust question this
+      // sprint is about.
+      router.refresh();
     });
   };
 
@@ -45,18 +61,13 @@ export function InviteForm({ canInvite }: { canInvite: boolean }) {
           disabled={!canInvite}
           className={`${field} disabled:opacity-50`}
         />
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending || !email.trim() || !canInvite}
-          className="shrink-0 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <Button onClick={submit} disabled={pending || !email.trim() || !canInvite} className="shrink-0">
           {pending ? "Inviting…" : "Invite"}
-        </button>
+        </Button>
       </div>
       {!canInvite && <p className="mt-2 text-sm text-dim">Inviting new people isn&apos;t your responsibility here.</p>}
       {err && (
-        <p className="mt-2 text-sm text-red-500" role="alert">
+        <p className="mt-2 text-sm text-error" role="alert">
           {err}
         </p>
       )}

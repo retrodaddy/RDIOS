@@ -50,6 +50,7 @@ export default async function OrganizationPage() {
           roster={roster}
           canManage={ctx.permissions.has("organization.manage")}
           isFounder={ctx.institution.founderPersonId === ctx.person.id}
+          institutionType={ctx.institution.type}
         />
       </div>
     </div>
