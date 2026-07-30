@@ -39,6 +39,7 @@ export interface FinanceProvider {
     payee: string | null;
     accountId: string | null;
     createdByPersonId: string;
+    projectId: string | null;
   }): Promise<Expense>;
   /** Records a decision on an Expense's single approval gate. Part 8's
    *  policy extension point (applications/finance/policy.ts) decides
@@ -56,10 +57,12 @@ export interface FinanceProvider {
     payer: string | null;
     accountId: string | null;
     createdByPersonId: string;
+    projectId: string | null;
   }): Promise<Income>;
 
   archiveTransaction(id: string): Promise<FinanceTransaction | null>;
   addTransactionDocumentRef(id: string, label: string): Promise<DocumentRef | null>;
+  setTransactionProject(id: string, projectId: string | null): Promise<FinanceTransaction | null>;
 
   listAssets(institutionId: string): Promise<Asset[]>;
   getAsset(id: string): Promise<Asset | null>;
@@ -75,9 +78,11 @@ export interface FinanceProvider {
     warrantyExpiresAt: string | null;
     acquiredViaExpenseId: string | null;
     createdByPersonId: string;
+    projectId: string | null;
   }): Promise<Asset>;
   transferCustodian(assetId: string, custodianPersonId: string | null): Promise<Asset | null>;
   setAssetStatus(assetId: string, status: AssetStatus): Promise<Asset | null>;
   setAssetServiceNotes(assetId: string, serviceNotes: string): Promise<Asset | null>;
   addAssetDocumentRef(assetId: string, label: string): Promise<DocumentRef | null>;
+  setAssetProject(assetId: string, projectId: string | null): Promise<Asset | null>;
 }

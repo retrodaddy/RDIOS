@@ -55,6 +55,11 @@ export type Position = {
   canvasX: number;
   canvasY: number;
   status: "active" | "archived";
+  /** Provenance, per the accepted Universal Record Model — who recorded
+   *  this Position into the system, and when. Nullable only because
+   *  Positions created before the Platform Integration Sprint predate the
+   *  field; every new Position sets it. */
+  createdByPersonId: string | null;
   createdAt: string;
 };
 

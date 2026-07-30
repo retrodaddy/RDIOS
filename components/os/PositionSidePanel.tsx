@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   appointHolderAction,
   endHolderAction,
+  getPositionHistoryAction,
   updatePositionDetailsAction,
   updatePositionParentsAction,
   updatePositionResponsibilitiesAction,
@@ -14,6 +15,7 @@ import type { AppointmentType, Position, PositionHolder } from "@/applications/p
 import { PERMISSIONS, PERMISSION_LABELS, PERMISSION_DESCRIPTIONS, type PermissionKey } from "@/engines/authority/types";
 import { getPermissionLabel, getPermissionDescription } from "@/os/institution/terminology";
 import type { InstitutionType } from "@/os/identity/types";
+import type { HistoryEntry } from "@/os/attention/types";
 import { Button } from "@/components/ui";
 
 export type RosterPerson = { id: string; name: string; email: string; status: "active" | "invited" };
@@ -53,10 +55,24 @@ export function PositionSidePanel({
   const [personId, setPersonId] = useState("");
   const [appointmentType, setAppointmentType] = useState<AppointmentType>("permanent");
   const [savedField, setSavedField] = useState<"name" | "description" | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+
+  useEffect(() => {
+    setHistory(null);
+    getPositionHistoryAction(position.id).then(setHistory);
+  }, [position.id]);
 
   const flashSaved = (field: "name" | "description") => {
     setSavedField(field);
     setTimeout(() => setSavedField((f) => (f === field ? null : f)), 1600);
+  };
+
+  /** `router.refresh()` re-fetches this panel's own props (holder,
+   *  responsibilities) but doesn't remount the component, so the Timeline's
+   *  mount-only fetch never sees a just-recorded entry on its own — refetch
+   *  it explicitly alongside every refresh instead. */
+  const refreshHistory = () => {
+    getPositionHistoryAction(position.id).then(setHistory);
   };
 
   const holder = holders.find((h) => !h.endedAt) ?? null;
@@ -70,6 +86,7 @@ export function PositionSidePanel({
       await updatePositionDetailsAction(position.id, { name: name.trim() });
       flashSaved("name");
       router.refresh();
+      refreshHistory();
     });
   };
 
@@ -79,6 +96,7 @@ export function PositionSidePanel({
       await updatePositionDetailsAction(position.id, { description: description.trim() || null });
       flashSaved("description");
       router.refresh();
+      refreshHistory();
     });
   };
 
@@ -93,6 +111,7 @@ export function PositionSidePanel({
       setAppointing(false);
       setPersonId("");
       router.refresh();
+      refreshHistory();
     });
   };
 
@@ -102,6 +121,7 @@ export function PositionSidePanel({
       fd.set("holderId", holderId);
       await endHolderAction(fd);
       router.refresh();
+      refreshHistory();
     });
   };
 
@@ -109,6 +129,7 @@ export function PositionSidePanel({
     start(async () => {
       await updatePositionParentsAction(position.id, position.reportsToPositionIds.filter((id) => id !== parentId));
       router.refresh();
+      refreshHistory();
     });
   };
 
@@ -119,11 +140,12 @@ export function PositionSidePanel({
     start(async () => {
       await updatePositionResponsibilitiesAction(position.id, next);
       router.refresh();
+      refreshHistory();
     });
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-modal="true" aria-label={position.name}>
+    <div className="fixed inset-0 z-[75] flex justify-end" role="dialog" aria-modal="true" aria-label={position.name}>
       <div className="os-anim-backdrop absolute inset-0 bg-black/20" onClick={onClose} />
       <div className="os-anim-drawer-right relative flex h-full w-full max-w-sm flex-col overflow-y-auto border-l border-border bg-elevated p-6">
         <div className="flex items-start justify-between gap-3">
@@ -293,6 +315,31 @@ export function PositionSidePanel({
           </ul>
           {!isFounder && (
             <p className="mt-2 text-xs text-dim">Only the institution&apos;s founder can change what a position is responsible for.</p>
+          )}
+        </section>
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Related records</h3>
+          <p className="mt-1.5 text-sm text-muted">
+            Work, Finance, and Community will be able to point here once they&apos;re ready to. Nothing to connect yet.
+          </p>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Timeline</h3>
+          {history === null ? (
+            <p className="mt-2 text-sm text-muted">Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Nothing recorded yet — this position&apos;s own history starts here.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {history.map((h) => (
+                <li key={h.id} className="text-sm">
+                  <p className="text-text">{h.summary}</p>
+                  <p className="text-xs text-dim">{new Date(h.occurredAt).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       </div>

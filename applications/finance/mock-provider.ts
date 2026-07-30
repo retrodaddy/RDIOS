@@ -63,7 +63,7 @@ export const mockFinanceProvider: FinanceProvider = {
     return store().transactions.get(id) ?? null;
   },
 
-  async createExpense({ institutionId, title, description, amount, date, category, paymentMethod, payee, accountId, createdByPersonId }) {
+  async createExpense({ institutionId, title, description, amount, date, category, paymentMethod, payee, accountId, createdByPersonId, projectId }) {
     const expense: Expense = {
       id: randomUUID(),
       kind: "expense",
@@ -83,6 +83,7 @@ export const mockFinanceProvider: FinanceProvider = {
       decidedAt: null,
       createdByPersonId,
       createdAt: new Date().toISOString(),
+      projectId,
     };
     store().transactions.set(expense.id, expense);
     return expense;
@@ -97,7 +98,7 @@ export const mockFinanceProvider: FinanceProvider = {
     return item;
   },
 
-  async createIncome({ institutionId, title, description, amount, date, source, paymentMethod, payer, accountId, createdByPersonId }) {
+  async createIncome({ institutionId, title, description, amount, date, source, paymentMethod, payer, accountId, createdByPersonId, projectId }) {
     const income = {
       id: randomUUID(),
       kind: "income" as const,
@@ -114,6 +115,7 @@ export const mockFinanceProvider: FinanceProvider = {
       status: "recorded" as const,
       createdByPersonId,
       createdAt: new Date().toISOString(),
+      projectId,
     };
     store().transactions.set(income.id, income);
     return income;
@@ -132,6 +134,13 @@ export const mockFinanceProvider: FinanceProvider = {
     const ref = newDocumentRef(label);
     item.documentRefs.push(ref);
     return ref;
+  },
+
+  async setTransactionProject(id, projectId) {
+    const item = store().transactions.get(id);
+    if (!item) return null;
+    item.projectId = projectId;
+    return item;
   },
 
   async listAssets(institutionId) {
@@ -156,6 +165,7 @@ export const mockFinanceProvider: FinanceProvider = {
     warrantyExpiresAt,
     acquiredViaExpenseId,
     createdByPersonId,
+    projectId,
   }) {
     const asset: Asset = {
       id: randomUUID(),
@@ -174,6 +184,7 @@ export const mockFinanceProvider: FinanceProvider = {
       acquiredViaExpenseId,
       createdByPersonId,
       createdAt: new Date().toISOString(),
+      projectId,
     };
     store().assets.set(asset.id, asset);
     return asset;
@@ -206,5 +217,12 @@ export const mockFinanceProvider: FinanceProvider = {
     const ref = newDocumentRef(label);
     asset.documentRefs.push(ref);
     return ref;
+  },
+
+  async setAssetProject(assetId, projectId) {
+    const asset = store().assets.get(assetId);
+    if (!asset) return null;
+    asset.projectId = projectId;
+    return asset;
   },
 };

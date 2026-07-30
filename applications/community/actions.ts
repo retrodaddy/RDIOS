@@ -76,6 +76,7 @@ export async function createContactAction(formData: FormData): Promise<ActionRes
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const addresses = parseAddresses(formData.get("addresses"));
   const pointsOfContact = parsePointsOfContact(formData.get("pointsOfContact"));
+  const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
   const contact = await mockCommunityProvider.createContact({
     institutionId: ctx.institution.id,
@@ -90,6 +91,7 @@ export async function createContactAction(formData: FormData): Promise<ActionRes
     direction: direction as Direction,
     type,
     createdByPersonId: ctx.person.id,
+    projectId,
   });
 
   recordHistory(
@@ -209,6 +211,26 @@ export async function getContactHistoryAction(contactId: string): Promise<Histor
   const contact = await getOwnedContact(contactId, ctx.institution.id);
   if (!contact) return [];
   return listHistoryForSubject(ctx.institution.id, SUBJECT_TYPE, contactId);
+}
+
+/** Attaches or detaches a Contact to/from a Project — the thin seam
+ *  Community exposes for M9's convergence, never a duplicate of
+ *  Community's own relationship-management flow. */
+export async function setContactProjectAction(contactId: string, projectId: string | null): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+  if (!ctx.permissions.has("community.manage")) return notResponsible("Managing community relationships");
+
+  const contact = await getOwnedContact(contactId, ctx.institution.id);
+  if (!contact) return { ok: false, error: "Contact not found." };
+
+  await mockCommunityProvider.setContactProject(contactId, projectId);
+  recordHistory(
+    ctx.institution.id,
+    projectId ? `${ctx.person.name} linked ${contact.name} to a project.` : `${ctx.person.name} unlinked ${contact.name} from its project.`,
+    { subjectType: SUBJECT_TYPE, subjectId: contactId }
+  );
+  return { ok: true };
 }
 
 export async function addDocumentRefAction(contactId: string, label: string): Promise<ActionResult> {

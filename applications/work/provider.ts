@@ -15,9 +15,14 @@ export interface WorkProvider {
     description: string | null;
     createdByPersonId: string;
     assigneePersonId: string | null;
+    projectId: string | null;
   }): Promise<Task>;
   assignTask(taskId: string, assigneePersonId: string | null): Promise<Task | null>;
   setTaskStatus(taskId: string, status: TaskStatus): Promise<Task | null>;
+  /** Attaches or detaches a Work Item from a Project — the one seam Work
+   *  exposes for M9's convergence, never a duplicate of Work's own
+   *  create/assign flow. */
+  setWorkItemProject(workItemId: string, projectId: string | null): Promise<WorkItem | null>;
 
   /** `chainAreas` becomes the Approval's ApprovalStep sequence, one step
    *  per Area, in order — the chain names Areas, never people, per
@@ -28,6 +33,7 @@ export interface WorkProvider {
     description: string | null;
     createdByPersonId: string;
     chainAreas: PermissionKey[];
+    projectId: string | null;
   }): Promise<Approval>;
   /** Records a decision on the Approval's *current* step only — the
    *  chain always moves in order. Advances to the next step on approval,

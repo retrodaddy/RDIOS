@@ -8,6 +8,9 @@ import { mockFinanceProvider } from "@/applications/finance/mock-provider";
 import { resolveExpenseApprovalArea } from "@/applications/finance/policy";
 import { mockCommunityProvider } from "@/applications/community/mock-provider";
 import { DIRECTION_LABELS } from "@/applications/community/types";
+import { mockProjectsProvider } from "@/applications/projects/mock-provider";
+import { mockDocumentsProvider } from "@/applications/documents/mock-provider";
+import { computeObservations } from "@/applications/reports/analytics";
 import { personCanSatisfyArea, personHoldsPosition } from "@/engines/authority/resolver";
 import { PERMISSION_LABELS } from "@/engines/authority/types";
 import { listHistory } from "./history-store";
@@ -15,6 +18,7 @@ import type { AttentionItem, BeAwareItem, HistoryEntry } from "./types";
 
 const WARRANTY_LOOKAHEAD_DAYS = 30;
 const RELATIONSHIP_QUIET_AFTER_DAYS = 180;
+const DOCUMENT_EXPIRY_LOOKAHEAD_DAYS = 30;
 
 /**
  * The Attention Engine, composed exactly as the frozen Product Foundation
@@ -190,6 +194,123 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
     }
   }
 
+  // Projects (M9) — real decisions only, the same discipline every prior
+  // Attention Contract already proved out: a project stuck on Blocked, a
+  // project past its own target date and not yet completed or archived,
+  // and a project with nobody named as owner. Surfaced to whoever can
+  // actually do something about it — Projects' own Area, the project's
+  // owner, or one of its members — never everyone, never a manufactured
+  // "budget" nudge (the brief names that explicitly as future, unbuilt).
+  const projects = await mockProjectsProvider.listProjects(ctx.institution.id);
+  for (const project of projects) {
+    if (project.status !== "active") continue;
+    const involved =
+      ctx.permissions.has("projects.manage") ||
+      project.ownerPersonId === ctx.person.id ||
+      project.members.some((m) => m.personId === ctx.person.id);
+    if (!involved) continue;
+
+    if (project.stage === "Blocked") {
+      items.push({
+        id: `project-blocked-${project.id}`,
+        title: project.name,
+        meta: "Blocked",
+        verb: "Review",
+        href: "/projects",
+      });
+    }
+
+    if (project.targetDate && !project.completedAt) {
+      const daysOver = Math.floor((Date.now() - new Date(project.targetDate).getTime()) / 86_400_000);
+      if (daysOver > 0) {
+        items.push({
+          id: `project-overdue-${project.id}`,
+          title: project.name,
+          meta: `${daysOver} ${daysOver === 1 ? "day" : "days"} past its target date`,
+          verb: "Review",
+          href: "/projects",
+        });
+      }
+    }
+
+    if (!project.ownerPersonId) {
+      items.push({
+        id: `project-owner-${project.id}`,
+        title: project.name,
+        meta: "No owner named yet",
+        verb: "Assign",
+        href: "/projects",
+      });
+    }
+  }
+
+  // Documents (M10) — real decisions only, the same discipline every
+  // prior Attention Contract has proven out: a document deliberately
+  // submitted for approval, and something whose validity is genuinely
+  // time-bound (a certificate, a contract) approaching or past its own
+  // expiry date. "Mandatory document missing" (named in the brief as an
+  // example) is deliberately not built — it needs an institution-
+  // configured "required documents" concept that doesn't exist anywhere
+  // in the platform yet, and inventing one here would be new architecture,
+  // not implementation. Same-actor exclusion mirrors Work/Finance: nobody
+  // sees their own submission as something they can decide.
+  if (ctx.permissions.has("documents.manage")) {
+    const documents = await mockDocumentsProvider.listDocuments(ctx.institution.id);
+    for (const document of documents) {
+      if (document.status === "archived") continue;
+
+      if (document.approvalStatus === "pending" && document.createdByPersonId !== ctx.person.id) {
+        items.push({
+          id: `document-approval-${document.id}`,
+          title: document.title,
+          meta: "Awaiting approval",
+          verb: "Review",
+          href: "/documents",
+        });
+      }
+
+      if (document.expiresAt) {
+        const daysLeft = Math.ceil((new Date(document.expiresAt).getTime() - Date.now()) / 86_400_000);
+        if (daysLeft <= DOCUMENT_EXPIRY_LOOKAHEAD_DAYS) {
+          items.push({
+            id: `document-expiry-${document.id}`,
+            title: document.title,
+            meta:
+              daysLeft < 0
+                ? `Expired ${Math.abs(daysLeft)} ${Math.abs(daysLeft) === 1 ? "day" : "days"} ago`
+                : daysLeft === 0
+                  ? "Expires today"
+                  : `Expires in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`,
+            verb: "Review",
+            href: "/documents",
+          });
+        }
+      }
+    }
+  }
+
+  // Analytics (M11) — exactly one Act Now contribution, deliberately:
+  // "Analytics contributes naturally to Home. Only when meaningful.
+  // Never spam." Every Observation Analytics can produce is read here,
+  // but only the one genuinely actionable one (approvals stuck for over
+  // a week, an aggregate nobody else already surfaces — Work's own
+  // per-approval items only show approvals *this* person can currently
+  // decide, never "these have been stuck too long" as a fact on its
+  // own) becomes an Act Now card, and only for whoever could act on it.
+  if (ctx.permissions.has("work.manage")) {
+    const observations = await computeObservations(ctx.institution.id);
+    const stuck = observations.find((o) => o.id === "stuck-approvals");
+    if (stuck) {
+      items.push({
+        id: "analytics-stuck-approvals",
+        title: "Approvals waiting too long",
+        meta: stuck.text,
+        verb: "Review",
+        href: stuck.href,
+      });
+    }
+  }
+
   return items;
 }
 
@@ -269,6 +390,40 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
       label: "Community",
       value: `${activeContacts.length} ${activeContacts.length === 1 ? "contact" : "contacts"}`,
       sub: `${byDirection.receiving} receiving, ${byDirection.supporting} supporting, ${byDirection.supplying} supplying`,
+    });
+  }
+
+  const projectsForBeAware = await mockProjectsProvider.listProjects(ctx.institution.id);
+  const activeProjects = projectsForBeAware.filter((p) => p.status === "active");
+  if (activeProjects.length > 0) {
+    const blocked = activeProjects.filter((p) => p.stage === "Blocked").length;
+    items.push({
+      id: "projects",
+      label: "Projects",
+      value: `${activeProjects.length} active`,
+      sub: blocked > 0 ? `${blocked} blocked` : "None blocked",
+    });
+  }
+
+  const documentsForBeAware = await mockDocumentsProvider.listDocuments(ctx.institution.id);
+  const activeDocuments = documentsForBeAware.filter((d) => d.status !== "archived");
+  if (activeDocuments.length > 0) {
+    const pendingApproval = activeDocuments.filter((d) => d.approvalStatus === "pending").length;
+    items.push({
+      id: "documents",
+      label: "Documents",
+      value: `${activeDocuments.length} kept`,
+      sub: pendingApproval > 0 ? `${pendingApproval} awaiting approval` : "None awaiting approval",
+    });
+  }
+
+  const observationsForBeAware = await computeObservations(ctx.institution.id);
+  if (observationsForBeAware.length > 0) {
+    items.push({
+      id: "analytics",
+      label: "Analytics",
+      value: `${observationsForBeAware.length} ${observationsForBeAware.length === 1 ? "observation" : "observations"}`,
+      sub: observationsForBeAware[0].text,
     });
   }
 

@@ -17,6 +17,7 @@ export interface PeopleProvider {
     reportsToPositionIds: string[];
     canvasX: number;
     canvasY: number;
+    createdByPersonId: string | null;
   }): Promise<Position>;
   /** Renames and/or redescribes a Position — the Organization Builder side
    *  panel's editable fields. Undefined leaves a field unchanged. */
@@ -47,13 +48,16 @@ export interface PeopleProvider {
   /** Closes any existing active holder on the Position, then appoints the
    *  new one — never two active holders on one seat at once. */
   appointHolder(input: { positionId: string; personId: string; appointmentType: AppointmentType }): Promise<PositionHolder>;
+  getPositionHolder(holderId: string): Promise<PositionHolder | null>;
   endHolder(holderId: string): Promise<{ ok: boolean; error?: string }>;
 
   listAffiliationsForPerson(personId: string): Promise<Affiliation[]>;
+  getAffiliation(affiliationId: string): Promise<Affiliation | null>;
   addAffiliation(input: { institutionId: string; personId: string; label: string }): Promise<Affiliation>;
   endAffiliation(affiliationId: string): Promise<{ ok: boolean; error?: string }>;
 
   listCapabilitiesForPerson(personId: string): Promise<Capability[]>;
+  getCapability(capabilityId: string): Promise<Capability | null>;
   grantCapability(input: { institutionId: string; personId: string; label: string }): Promise<Capability>;
   revokeCapability(capabilityId: string): Promise<{ ok: boolean; error?: string }>;
 

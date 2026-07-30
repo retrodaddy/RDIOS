@@ -112,4 +112,8 @@ export type Contact = {
   createdByPersonId: string;
   createdAt: string;
   archivedAt: string | null;
+  /** The Project this belongs to, if any — M9's convergence point.
+   *  Nullable since most Contacts predate Projects and plenty of real
+   *  relationships never belong to one. */
+  projectId: string | null;
 };

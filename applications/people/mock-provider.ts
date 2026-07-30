@@ -52,7 +52,7 @@ export const mockPeopleProvider: PeopleProvider = {
     return store().positions.get(positionId) ?? null;
   },
 
-  async createPosition({ institutionId, name, reportsToPositionIds, canvasX, canvasY }) {
+  async createPosition({ institutionId, name, reportsToPositionIds, canvasX, canvasY, createdByPersonId }) {
     const position: Position = {
       id: randomUUID(),
       institutionId,
@@ -63,6 +63,7 @@ export const mockPeopleProvider: PeopleProvider = {
       canvasX,
       canvasY,
       status: "active",
+      createdByPersonId,
       createdAt: new Date().toISOString(),
     };
     store().positions.set(position.id, position);
@@ -138,6 +139,10 @@ export const mockPeopleProvider: PeopleProvider = {
     return holder;
   },
 
+  async getPositionHolder(holderId) {
+    return store().holders.get(holderId) ?? null;
+  },
+
   async endHolder(holderId) {
     const holder = store().holders.get(holderId);
     if (!holder) return { ok: false, error: "Not found." };
@@ -164,6 +169,10 @@ export const mockPeopleProvider: PeopleProvider = {
     return affiliation;
   },
 
+  async getAffiliation(affiliationId) {
+    return store().affiliations.get(affiliationId) ?? null;
+  },
+
   async endAffiliation(affiliationId) {
     const affiliation = store().affiliations.get(affiliationId);
     if (!affiliation) return { ok: false, error: "Not found." };
@@ -185,6 +194,10 @@ export const mockPeopleProvider: PeopleProvider = {
     };
     store().capabilities.set(capability.id, capability);
     return capability;
+  },
+
+  async getCapability(capabilityId) {
+    return store().capabilities.get(capabilityId) ?? null;
   },
 
   async revokeCapability(capabilityId) {

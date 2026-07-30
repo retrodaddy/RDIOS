@@ -2,7 +2,8 @@
 
 import { getIdentityContext } from "@/os/identity/session";
 import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory } from "@/os/attention/history-store";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import type { HistoryEntry } from "@/os/attention/types";
 import { PERMISSION_LABELS } from "@/engines/authority/types";
 import { personCanSatisfyArea } from "@/engines/authority/resolver";
 import { mockFinanceProvider } from "./mock-provider";
@@ -10,6 +11,9 @@ import { resolveExpenseApprovalArea } from "./policy";
 import { ACCOUNT_KINDS, INCOME_SOURCES, PAYMENT_METHODS, type AccountKind, type IncomeSource, type PaymentMethod } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
+
+const TRANSACTION_SUBJECT_TYPE = "finance.transaction";
+const ASSET_SUBJECT_TYPE = "finance.asset";
 
 function notResponsible(what: string): ActionResult {
   return { ok: false, error: `${what} isn't your responsibility here.` };
@@ -80,6 +84,7 @@ export async function createExpenseAction(formData: FormData): Promise<ActionRes
   const description = String(formData.get("description") ?? "").trim() || null;
   const payee = String(formData.get("payee") ?? "").trim() || null;
   const accountId = String(formData.get("accountId") ?? "").trim() || null;
+  const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
   if (accountId && !(await getOwnedAccount(accountId, ctx.institution.id))) {
     return { ok: false, error: "That account doesn't belong to this institution." };
@@ -96,8 +101,13 @@ export async function createExpenseAction(formData: FormData): Promise<ActionRes
     payee,
     accountId,
     createdByPersonId: ctx.person.id,
+    projectId,
   });
-  recordHistory(ctx.institution.id, `${ctx.person.name} recorded an expense — "${expense.title}" (₹${expense.amount.toLocaleString("en-IN")}).`);
+  recordHistory(
+    ctx.institution.id,
+    `${ctx.person.name} recorded an expense — "${expense.title}" (₹${expense.amount.toLocaleString("en-IN")}).`,
+    { subjectType: TRANSACTION_SUBJECT_TYPE, subjectId: expense.id }
+  );
   return { ok: true };
 }
 
@@ -137,7 +147,8 @@ export async function decideExpenseAction(expenseId: string, decision: "approved
     ctx.institution.id,
     decision === "approved"
       ? `${ctx.person.name} approved the expense "${item.title}".`
-      : `${ctx.person.name} rejected the expense "${item.title}".`
+      : `${ctx.person.name} rejected the expense "${item.title}".`,
+    { subjectType: TRANSACTION_SUBJECT_TYPE, subjectId: expenseId }
   );
   return { ok: true };
 }
@@ -160,6 +171,7 @@ export async function createIncomeAction(formData: FormData): Promise<ActionResu
   const description = String(formData.get("description") ?? "").trim() || null;
   const payer = String(formData.get("payer") ?? "").trim() || null;
   const accountId = String(formData.get("accountId") ?? "").trim() || null;
+  const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
   if (accountId && !(await getOwnedAccount(accountId, ctx.institution.id))) {
     return { ok: false, error: "That account doesn't belong to this institution." };
@@ -176,8 +188,13 @@ export async function createIncomeAction(formData: FormData): Promise<ActionResu
     payer,
     accountId,
     createdByPersonId: ctx.person.id,
+    projectId,
   });
-  recordHistory(ctx.institution.id, `${ctx.person.name} recorded income — "${income.title}" (₹${income.amount.toLocaleString("en-IN")}).`);
+  recordHistory(
+    ctx.institution.id,
+    `${ctx.person.name} recorded income — "${income.title}" (₹${income.amount.toLocaleString("en-IN")}).`,
+    { subjectType: TRANSACTION_SUBJECT_TYPE, subjectId: income.id }
+  );
   return { ok: true };
 }
 
@@ -190,7 +207,10 @@ export async function archiveTransactionAction(id: string): Promise<ActionResult
   if (!item || item.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
 
   await mockFinanceProvider.archiveTransaction(id);
-  recordHistory(ctx.institution.id, `${ctx.person.name} archived "${item.title}".`);
+  recordHistory(ctx.institution.id, `${ctx.person.name} archived "${item.title}".`, {
+    subjectType: TRANSACTION_SUBJECT_TYPE,
+    subjectId: id,
+  });
   return { ok: true };
 }
 
@@ -205,6 +225,36 @@ export async function addTransactionDocumentRefAction(id: string, label: string)
 
   await mockFinanceProvider.addTransactionDocumentRef(id, label);
   return { ok: true };
+}
+
+/** Attaches or detaches a Transaction to/from a Project — the thin seam
+ *  Finance exposes for M9's convergence, never a duplicate of Finance's
+ *  own record-keeping. */
+export async function setTransactionProjectAction(id: string, projectId: string | null): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+  if (!ctx.permissions.has("finance.manage")) return notResponsible("Managing financial records");
+
+  const item = await mockFinanceProvider.getTransaction(id);
+  if (!item || item.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
+
+  await mockFinanceProvider.setTransactionProject(id, projectId);
+  recordHistory(
+    ctx.institution.id,
+    projectId ? `${ctx.person.name} linked "${item.title}" to a project.` : `${ctx.person.name} unlinked "${item.title}" from its project.`,
+    { subjectType: TRANSACTION_SUBJECT_TYPE, subjectId: id }
+  );
+  return { ok: true };
+}
+
+/** A Transaction's own Timeline — the same filtered-History read pattern
+ *  Community, Work, and People's Positions all now use. */
+export async function getTransactionHistoryAction(id: string): Promise<HistoryEntry[]> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return [];
+  const item = await mockFinanceProvider.getTransaction(id);
+  if (!item || item.institutionId !== ctx.institution.id) return [];
+  return listHistoryForSubject(ctx.institution.id, TRANSACTION_SUBJECT_TYPE, id);
 }
 
 export async function createAssetAction(formData: FormData): Promise<ActionResult> {
@@ -225,6 +275,7 @@ export async function createAssetAction(formData: FormData): Promise<ActionResul
   const location = String(formData.get("location") ?? "").trim() || null;
   const warrantyExpiresAt = String(formData.get("warrantyExpiresAt") ?? "").trim() || null;
   const acquiredViaExpenseId = String(formData.get("acquiredViaExpenseId") ?? "").trim() || null;
+  const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
   if (acquiredViaExpenseId) {
     const linked = await mockFinanceProvider.getTransaction(acquiredViaExpenseId);
@@ -245,8 +296,12 @@ export async function createAssetAction(formData: FormData): Promise<ActionResul
     warrantyExpiresAt,
     acquiredViaExpenseId,
     createdByPersonId: ctx.person.id,
+    projectId,
   });
-  recordHistory(ctx.institution.id, `${ctx.person.name} registered the asset "${asset.name}".`);
+  recordHistory(ctx.institution.id, `${ctx.person.name} registered the asset "${asset.name}".`, {
+    subjectType: ASSET_SUBJECT_TYPE,
+    subjectId: asset.id,
+  });
   return { ok: true };
 }
 
@@ -264,7 +319,8 @@ export async function transferCustodianAction(assetId: string, custodianPersonId
     ctx.institution.id,
     name
       ? `${ctx.person.name} made ${name} the custodian of "${asset.name}".`
-      : `${ctx.person.name} removed the custodian from "${asset.name}".`
+      : `${ctx.person.name} removed the custodian from "${asset.name}".`,
+    { subjectType: ASSET_SUBJECT_TYPE, subjectId: assetId }
   );
   return { ok: true };
 }
@@ -278,7 +334,10 @@ export async function setAssetStatusAction(assetId: string, status: string): Pro
   if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
 
   await mockFinanceProvider.setAssetStatus(assetId, status as Parameters<typeof mockFinanceProvider.setAssetStatus>[1]);
-  recordHistory(ctx.institution.id, `${ctx.person.name} updated "${asset.name}" to ${status.replace("_", " ")}.`);
+  recordHistory(ctx.institution.id, `${ctx.person.name} updated "${asset.name}" to ${status.replace("_", " ")}.`, {
+    subjectType: ASSET_SUBJECT_TYPE,
+    subjectId: assetId,
+  });
   return { ok: true };
 }
 
@@ -291,6 +350,10 @@ export async function setAssetServiceNotesAction(assetId: string, serviceNotes: 
   if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
 
   await mockFinanceProvider.setAssetServiceNotes(assetId, serviceNotes);
+  recordHistory(ctx.institution.id, `${ctx.person.name} updated "${asset.name}"'s service notes.`, {
+    subjectType: ASSET_SUBJECT_TYPE,
+    subjectId: assetId,
+  });
   return { ok: true };
 }
 
@@ -305,4 +368,33 @@ export async function addAssetDocumentRefAction(assetId: string, label: string):
 
   await mockFinanceProvider.addAssetDocumentRef(assetId, label);
   return { ok: true };
+}
+
+/** Attaches or detaches an Asset to/from a Project — the same thin seam
+ *  Transactions expose. */
+export async function setAssetProjectAction(assetId: string, projectId: string | null): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+  if (!ctx.permissions.has("assets.manage")) return notResponsible("Managing assets");
+
+  const asset = await mockFinanceProvider.getAsset(assetId);
+  if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
+
+  await mockFinanceProvider.setAssetProject(assetId, projectId);
+  recordHistory(
+    ctx.institution.id,
+    projectId ? `${ctx.person.name} linked "${asset.name}" to a project.` : `${ctx.person.name} unlinked "${asset.name}" from its project.`,
+    { subjectType: ASSET_SUBJECT_TYPE, subjectId: assetId }
+  );
+  return { ok: true };
+}
+
+/** An Asset's own Timeline — the same filtered-History read pattern every
+ *  other Record type now uses. */
+export async function getAssetHistoryAction(assetId: string): Promise<HistoryEntry[]> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return [];
+  const asset = await mockFinanceProvider.getAsset(assetId);
+  if (!asset || asset.institutionId !== ctx.institution.id) return [];
+  return listHistoryForSubject(ctx.institution.id, ASSET_SUBJECT_TYPE, assetId);
 }

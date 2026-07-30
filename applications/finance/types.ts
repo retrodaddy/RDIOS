@@ -112,6 +112,10 @@ type FinanceTransactionBase = {
   status: TransactionStatus;
   createdByPersonId: string;
   createdAt: string;
+  /** The Project this belongs to, if any — M9's convergence point.
+   *  Nullable since most money predates Projects and plenty of real
+   *  income/expense never belongs to one. */
+  projectId: string | null;
 };
 
 /** Category is deliberately free text, not a fixed enum — unlike Income's
@@ -178,6 +182,9 @@ export type Asset = {
   acquiredViaExpenseId: string | null;
   createdByPersonId: string;
   createdAt: string;
+  /** The Project this belongs to, if any — the same M9 convergence
+   *  point Expense/Income carry. */
+  projectId: string | null;
 };
 
 /** The Areas of Responsibility Finance introduces (Part 7) — noun-based,

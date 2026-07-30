@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addAssetDocumentRefAction,
@@ -12,6 +12,8 @@ import {
   createExpenseAction,
   createIncomeAction,
   decideExpenseAction,
+  getAssetHistoryAction,
+  getTransactionHistoryAction,
   setAssetServiceNotesAction,
   setAssetStatusAction,
   transferCustodianAction,
@@ -35,6 +37,7 @@ import {
 import { PERMISSION_LABELS, type PermissionKey } from "@/engines/authority/types";
 import { getPermissionLabel } from "@/os/institution/terminology";
 import type { InstitutionType } from "@/os/identity/types";
+import type { HistoryEntry } from "@/os/attention/types";
 import { Badge, Button, DataTable, EmptyState, useToast, type BadgeTone, type DataTableColumn } from "@/components/ui";
 
 export type MoneyRosterPerson = { id: string; name: string; email: string };
@@ -544,7 +547,13 @@ function TransactionDetailDrawer({
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
   const [docLabel, setDocLabel] = useState("");
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const toast = useToast();
+
+  useEffect(() => {
+    setHistory(null);
+    getTransactionHistoryAction(item.id).then(setHistory);
+  }, [item.id]);
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, successMessage?: string) => {
     setErr(null);
@@ -553,6 +562,7 @@ function TransactionDetailDrawer({
       if (!r.ok) return setErr(r.error ?? "Could not complete that.");
       if (successMessage) toast.notify("success", successMessage);
       onChanged();
+      getTransactionHistoryAction(item.id).then(setHistory);
     });
   };
 
@@ -633,6 +643,31 @@ function TransactionDetailDrawer({
           canManage={canManageFinance}
           onAdd={() => run(() => addTransactionDocumentRefAction(item.id, docLabel).then((r) => { if (r.ok) setDocLabel(""); return r; }))}
         />
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Related records</h3>
+          <p className="mt-1.5 text-sm text-muted">
+            Community, Work, and Projects will be able to point here once they&apos;re ready to. Nothing to connect yet.
+          </p>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Timeline</h3>
+          {history === null ? (
+            <p className="mt-2 text-sm text-muted">Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Nothing recorded yet — this record&apos;s own history starts here.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {history.map((h) => (
+                <li key={h.id} className="text-sm">
+                  <p className="text-text">{h.summary}</p>
+                  <p className="text-xs text-dim">{new Date(h.occurredAt).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         {item.status !== "archived" && canManageFinance && (
           <Button
@@ -843,7 +878,13 @@ function AssetDetailDrawer({
   const [custodianId, setCustodianId] = useState(asset.custodianPersonId ?? "");
   const [serviceNotes, setServiceNotes] = useState(asset.serviceNotes ?? "");
   const [docLabel, setDocLabel] = useState("");
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const toast = useToast();
+
+  useEffect(() => {
+    setHistory(null);
+    getAssetHistoryAction(asset.id).then(setHistory);
+  }, [asset.id]);
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, successMessage?: string) => {
     setErr(null);
@@ -852,6 +893,7 @@ function AssetDetailDrawer({
       if (!r.ok) return setErr(r.error ?? "Could not complete that.");
       if (successMessage) toast.notify("success", successMessage);
       onChanged();
+      getAssetHistoryAction(asset.id).then(setHistory);
     });
   };
 
@@ -957,6 +999,31 @@ function AssetDetailDrawer({
           canManage={canManageAssets}
           onAdd={() => run(() => addAssetDocumentRefAction(asset.id, docLabel).then((r) => { if (r.ok) setDocLabel(""); return r; }))}
         />
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Related records</h3>
+          <p className="mt-1.5 text-sm text-muted">
+            Community, Work, and Projects will be able to point here once they&apos;re ready to. Nothing to connect yet.
+          </p>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Timeline</h3>
+          {history === null ? (
+            <p className="mt-2 text-sm text-muted">Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Nothing recorded yet — this asset&apos;s own history starts here.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {history.map((h) => (
+                <li key={h.id} className="text-sm">
+                  <p className="text-text">{h.summary}</p>
+                  <p className="text-xs text-dim">{new Date(h.occurredAt).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );

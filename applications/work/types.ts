@@ -70,6 +70,11 @@ type WorkItemBase = {
   createdByPersonId: string;
   createdAt: string;
   comments: Comment[];
+  /** The Project this belongs to, if any — M9's convergence point.
+   *  Nullable since most Work predates Projects and plenty of real work
+   *  never belongs to one; Projects organize Work, they never require
+   *  it. */
+  projectId: string | null;
 };
 
 /** `task.default` — open → in_progress → complete. Assignment is Manual

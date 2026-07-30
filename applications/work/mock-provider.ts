@@ -25,7 +25,7 @@ export const mockWorkProvider: WorkProvider = {
     return store().items.get(id) ?? null;
   },
 
-  async createTask({ institutionId, title, description, createdByPersonId, assigneePersonId }) {
+  async createTask({ institutionId, title, description, createdByPersonId, assigneePersonId, projectId }) {
     const task: Task = {
       id: randomUUID(),
       kind: "task",
@@ -35,6 +35,7 @@ export const mockWorkProvider: WorkProvider = {
       createdByPersonId,
       createdAt: new Date().toISOString(),
       comments: [],
+      projectId,
       status: "open",
       assigneePersonId,
       completedAt: null,
@@ -59,7 +60,7 @@ export const mockWorkProvider: WorkProvider = {
     return item;
   },
 
-  async createApproval({ institutionId, title, description, createdByPersonId, chainAreas }) {
+  async createApproval({ institutionId, title, description, createdByPersonId, chainAreas, projectId }) {
     const approval: Approval = {
       id: randomUUID(),
       kind: "approval",
@@ -69,6 +70,7 @@ export const mockWorkProvider: WorkProvider = {
       createdByPersonId,
       createdAt: new Date().toISOString(),
       comments: [],
+      projectId,
       status: "pending",
       currentStepIndex: 0,
       chain: chainAreas.map((area) => ({
@@ -112,6 +114,13 @@ export const mockWorkProvider: WorkProvider = {
     if (!step || step.status !== "pending") return null;
     step.escalated = true;
     step.escalatedToPositionId = escalatedToPositionId;
+    return item;
+  },
+
+  async setWorkItemProject(workItemId, projectId) {
+    const item = store().items.get(workItemId);
+    if (!item) return null;
+    item.projectId = projectId;
     return item;
   },
 

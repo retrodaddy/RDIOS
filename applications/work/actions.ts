@@ -2,13 +2,16 @@
 
 import { getIdentityContext } from "@/os/identity/session";
 import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory } from "@/os/attention/history-store";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import type { HistoryEntry } from "@/os/attention/types";
 import { PERMISSIONS, PERMISSION_LABELS, type PermissionKey } from "@/engines/authority/types";
 import { findEscalationTarget, personCanSatisfyArea, personHoldsPosition } from "@/engines/authority/resolver";
 import { mockWorkProvider } from "./mock-provider";
 import type { TaskStatus, WorkItem } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
+
+const SUBJECT_TYPE = "work.item";
 
 function notResponsible(what: string): ActionResult {
   return { ok: false, error: `${what} isn't your responsibility here.` };
@@ -51,6 +54,7 @@ export async function createTaskAction(formData: FormData): Promise<ActionResult
   if (!title) return { ok: false, error: "Title is required." };
   const description = String(formData.get("description") ?? "").trim() || null;
   const assigneePersonId = String(formData.get("assigneePersonId") ?? "").trim() || null;
+  const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
   const task = await mockWorkProvider.createTask({
     institutionId: ctx.institution.id,
@@ -58,12 +62,14 @@ export async function createTaskAction(formData: FormData): Promise<ActionResult
     description,
     createdByPersonId: ctx.person.id,
     assigneePersonId,
+    projectId,
   });
+  const subject = { subjectType: SUBJECT_TYPE, subjectId: task.id };
   if (assigneePersonId) {
     const assigneeName = assigneePersonId === ctx.person.id ? "themselves" : await nameOf(assigneePersonId);
-    recordHistory(ctx.institution.id, `${ctx.person.name} created "${task.title}" and assigned it to ${assigneeName}.`);
+    recordHistory(ctx.institution.id, `${ctx.person.name} created "${task.title}" and assigned it to ${assigneeName}.`, subject);
   } else {
-    recordHistory(ctx.institution.id, `${ctx.person.name} created "${task.title}".`);
+    recordHistory(ctx.institution.id, `${ctx.person.name} created "${task.title}".`, subject);
   }
   return { ok: true };
 }
@@ -80,7 +86,8 @@ export async function assignTaskAction(taskId: string, assigneePersonId: string 
   const name = assigneePersonId ? (assigneePersonId === ctx.person.id ? "themselves" : await nameOf(assigneePersonId)) : null;
   recordHistory(
     ctx.institution.id,
-    name ? `${ctx.person.name} assigned "${item.title}" to ${name}.` : `${ctx.person.name} unassigned "${item.title}".`
+    name ? `${ctx.person.name} assigned "${item.title}" to ${name}.` : `${ctx.person.name} unassigned "${item.title}".`,
+    { subjectType: SUBJECT_TYPE, subjectId: taskId }
   );
   return { ok: true };
 }
@@ -98,9 +105,20 @@ export async function setTaskStatusAction(taskId: string, status: TaskStatus): P
   const isAssignee = item.assigneePersonId === ctx.person.id;
   if (!isAssignee && !ctx.permissions.has("work.manage")) return notResponsible("Updating this task");
 
+  // Captured before the provider call — the mock provider mutates this
+  // same object in place and returns that reference, so checking
+  // `item.status` after the call would already read the *new* status,
+  // silently disabling the "reopened" branch below every time.
+  const wasComplete = item.status === "complete";
   await mockWorkProvider.setTaskStatus(taskId, status);
+  const subject = { subjectType: SUBJECT_TYPE, subjectId: taskId };
   if (status === "complete") {
-    recordHistory(ctx.institution.id, `${ctx.person.name} completed "${item.title}".`);
+    recordHistory(ctx.institution.id, `${ctx.person.name} completed "${item.title}".`, subject);
+  } else if (wasComplete) {
+    // Moving a completed task back to open/in_progress is a real, silent
+    // state transition otherwise — no less worth narrating than completing
+    // it in the first place.
+    recordHistory(ctx.institution.id, `${ctx.person.name} reopened "${item.title}".`, subject);
   }
   return { ok: true };
 }
@@ -118,6 +136,7 @@ export async function createApprovalAction(formData: FormData): Promise<ActionRe
     .map((v) => String(v))
     .filter((v): v is PermissionKey => (PERMISSIONS as readonly string[]).includes(v));
   if (chainAreas.length === 0) return { ok: false, error: "An approval needs at least one step." };
+  const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
   const approval = await mockWorkProvider.createApproval({
     institutionId: ctx.institution.id,
@@ -125,10 +144,12 @@ export async function createApprovalAction(formData: FormData): Promise<ActionRe
     description,
     createdByPersonId: ctx.person.id,
     chainAreas,
+    projectId,
   });
   recordHistory(
     ctx.institution.id,
-    `${ctx.person.name} requested approval for "${approval.title}" (${chainAreas.map((a) => PERMISSION_LABELS[a]).join(" → ")}).`
+    `${ctx.person.name} requested approval for "${approval.title}" (${chainAreas.map((a) => PERMISSION_LABELS[a]).join(" → ")}).`,
+    { subjectType: SUBJECT_TYPE, subjectId: approval.id }
   );
   return { ok: true };
 }
@@ -154,12 +175,13 @@ export async function decideApprovalStepAction(approvalId: string, decision: "ap
   const result = await mockWorkProvider.decideCurrentStep(approvalId, ctx.person.id, decision);
   if (!result) return { ok: false, error: "Could not record this decision." };
 
+  const subject = { subjectType: SUBJECT_TYPE, subjectId: approvalId };
   if (decision === "rejected") {
-    recordHistory(ctx.institution.id, `${ctx.person.name} rejected "${item.title}" at the ${PERMISSION_LABELS[step.area]} step.`);
+    recordHistory(ctx.institution.id, `${ctx.person.name} rejected "${item.title}" at the ${PERMISSION_LABELS[step.area]} step.`, subject);
   } else if (result.status === "approved") {
-    recordHistory(ctx.institution.id, `${ctx.person.name} approved "${item.title}" — fully approved.`);
+    recordHistory(ctx.institution.id, `${ctx.person.name} approved "${item.title}" — fully approved.`, subject);
   } else {
-    recordHistory(ctx.institution.id, `${ctx.person.name} approved "${item.title}" at the ${PERMISSION_LABELS[step.area]} step.`);
+    recordHistory(ctx.institution.id, `${ctx.person.name} approved "${item.title}" at the ${PERMISSION_LABELS[step.area]} step.`, subject);
   }
   return { ok: true };
 }
@@ -186,7 +208,42 @@ export async function escalateApprovalStepAction(approvalId: string): Promise<Ac
   if (!target) return { ok: false, error: "There's no position above this step's responsibility to escalate to." };
 
   await mockWorkProvider.escalateCurrentStep(approvalId, target);
-  recordHistory(ctx.institution.id, `${ctx.person.name} escalated "${item.title}" — the ${PERMISSION_LABELS[step.area]} step now also asks whoever it reports to.`);
+  recordHistory(
+    ctx.institution.id,
+    `${ctx.person.name} escalated "${item.title}" — the ${PERMISSION_LABELS[step.area]} step now also asks whoever it reports to.`,
+    { subjectType: SUBJECT_TYPE, subjectId: approvalId }
+  );
+  return { ok: true };
+}
+
+/** A Work Item's own Timeline — its filtered slice of institutional
+ *  History, the same read pattern Community's Contact detail view
+ *  already established. */
+export async function getWorkItemHistoryAction(workItemId: string): Promise<HistoryEntry[]> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return [];
+  const item = await getOwnedWorkItem(workItemId, ctx.institution.id);
+  if (!item) return [];
+  return listHistoryForSubject(ctx.institution.id, SUBJECT_TYPE, workItemId);
+}
+
+/** Attaches or detaches an existing Work Item to/from a Project — the
+ *  thin seam this domain exposes for M9's convergence rather than
+ *  duplicating any of Work's own create/assign flow. */
+export async function setWorkItemProjectAction(workItemId: string, projectId: string | null): Promise<ActionResult> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+  if (!ctx.permissions.has("work.manage")) return notResponsible("Managing work");
+
+  const item = await getOwnedWorkItem(workItemId, ctx.institution.id);
+  if (!item) return { ok: false, error: "Not found." };
+
+  await mockWorkProvider.setWorkItemProject(workItemId, projectId);
+  recordHistory(
+    ctx.institution.id,
+    projectId ? `${ctx.person.name} linked "${item.title}" to a project.` : `${ctx.person.name} unlinked "${item.title}" from its project.`,
+    { subjectType: SUBJECT_TYPE, subjectId: workItemId }
+  );
   return { ok: true };
 }
 

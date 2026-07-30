@@ -19,6 +19,9 @@ export const PERMISSIONS = [
   "treasury.approve",
   "assets.manage",
   "community.manage",
+  "projects.manage",
+  "documents.manage",
+  "reports.manage",
 ] as const;
 export type PermissionKey = (typeof PERMISSIONS)[number];
 
@@ -33,6 +36,9 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   "treasury.approve": "Approve spending",
   "assets.manage": "Manage assets",
   "community.manage": "Manage community relationships",
+  "projects.manage": "Manage projects",
+  "documents.manage": "Manage documents",
+  "reports.manage": "Generate and manage reports",
 };
 
 export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
@@ -44,4 +50,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   "treasury.approve": "Approve or reject expenses before they're final — the institution's real check on spending.",
   "assets.manage": "Register what the institution owns, and keep custodianship and condition up to date.",
   "community.manage": "Add and update contacts, and manage the institution's relationships with everyone it serves, supports, or is supplied by.",
+  "projects.manage": "Create projects, change their stage, manage who's involved, and close them once the work is done.",
+  "documents.manage": "Create and edit documents, add new versions, manage what they reference, and decide the ones awaiting approval.",
+  "reports.manage": "Generate new reports, save or rename them, and delete the ones no longer needed. Reading a report and its Analytics stays open to everyone — this Area only governs creating institutional record.",
 };

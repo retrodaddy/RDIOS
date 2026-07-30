@@ -37,7 +37,7 @@ export const mockCommunityProvider: CommunityProvider = {
     return store().contacts.get(id) ?? null;
   },
 
-  async createContact({ institutionId, kind, name, description, email, phone, addresses, notes, pointsOfContact, direction, type, createdByPersonId }) {
+  async createContact({ institutionId, kind, name, description, email, phone, addresses, notes, pointsOfContact, direction, type, createdByPersonId, projectId }) {
     const now = new Date().toISOString();
     const relationship: Relationship = {
       id: randomUUID(),
@@ -66,6 +66,7 @@ export const mockCommunityProvider: CommunityProvider = {
       createdByPersonId,
       createdAt: now,
       archivedAt: null,
+      projectId,
     };
     relationship.contactId = contact.id;
     contact.relationships.push(relationship);
@@ -140,5 +141,12 @@ export const mockCommunityProvider: CommunityProvider = {
     const ref: DocumentRef = { id: randomUUID(), label: label.trim(), addedAt: new Date().toISOString() };
     contact.documentRefs.push(ref);
     return ref;
+  },
+
+  async setContactProject(contactId, projectId) {
+    const contact = store().contacts.get(contactId);
+    if (!contact) return null;
+    contact.projectId = projectId;
+    return contact;
   },
 };

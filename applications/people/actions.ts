@@ -2,13 +2,16 @@
 
 import { getIdentityContext } from "@/os/identity/session";
 import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory } from "@/os/attention/history-store";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import type { HistoryEntry } from "@/os/attention/types";
 import { PERMISSIONS, type PermissionKey } from "@/engines/authority/types";
 import { mockPeopleProvider } from "./mock-provider";
 import type { AppointmentType, Position } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
 type PositionResult = { ok: true; position: Position } | { ok: false; error: string };
+
+const SUBJECT_TYPE = "people.position";
 
 /** The shared shape every responsibility check fails with — plain
  *  institutional language, never "permission denied" or "insufficient
@@ -44,11 +47,16 @@ export async function createPositionAction(formData: FormData): Promise<ActionRe
   const reportsTo = String(formData.get("reportsToPositionId") ?? "").trim();
   const existing = await mockPeopleProvider.listPositions(ctx.institution.id);
 
-  await mockPeopleProvider.createPosition({
+  const position = await mockPeopleProvider.createPosition({
     institutionId: ctx.institution.id,
     name,
     reportsToPositionIds: reportsTo ? [reportsTo] : [],
+    createdByPersonId: ctx.person.id,
     ...defaultCanvasSpot(existing.length),
+  });
+  recordHistory(ctx.institution.id, `${ctx.person.name} created the position "${position.name}".`, {
+    subjectType: SUBJECT_TYPE,
+    subjectId: position.id,
   });
   return { ok: true };
 }
@@ -74,6 +82,11 @@ export async function createPositionOnCanvasAction(input: {
     reportsToPositionIds: [],
     canvasX: input.canvasX,
     canvasY: input.canvasY,
+    createdByPersonId: ctx.person.id,
+  });
+  recordHistory(ctx.institution.id, `${ctx.person.name} created the position "${position.name}".`, {
+    subjectType: SUBJECT_TYPE,
+    subjectId: position.id,
   });
   return { ok: true, position };
 }
@@ -96,7 +109,10 @@ export async function updatePositionParentsAction(
   const result = await mockPeopleProvider.updatePositionParents(positionId, reportsToPositionIds);
   if (!result.ok) return { ok: false, error: result.error };
 
-  recordHistory(ctx.institution.id, `${ctx.person.name} changed ${position.name}'s reporting line.`);
+  recordHistory(ctx.institution.id, `${ctx.person.name} changed ${position.name}'s reporting line.`, {
+    subjectType: SUBJECT_TYPE,
+    subjectId: positionId,
+  });
   return { ok: true };
 }
 
@@ -126,9 +142,13 @@ export async function updatePositionDetailsAction(
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
 
   const renamed = input.name !== undefined && input.name.trim() !== position.name;
+  const redescribed = input.description !== undefined && (input.description?.trim() || null) !== position.description;
   await mockPeopleProvider.updatePositionDetails(positionId, input);
+  const subject = { subjectType: SUBJECT_TYPE, subjectId: positionId };
   if (renamed) {
-    recordHistory(ctx.institution.id, `${ctx.person.name} renamed ${position.name} to ${input.name!.trim()}.`);
+    recordHistory(ctx.institution.id, `${ctx.person.name} renamed ${position.name} to ${input.name!.trim()}.`, subject);
+  } else if (redescribed) {
+    recordHistory(ctx.institution.id, `${ctx.person.name} updated ${position.name}'s description.`, subject);
   }
   return { ok: true };
 }
@@ -154,7 +174,10 @@ export async function updatePositionResponsibilitiesAction(
 
   const valid = responsibilities.filter((r) => (PERMISSIONS as readonly string[]).includes(r));
   await mockPeopleProvider.updatePositionResponsibilities(positionId, valid);
-  recordHistory(ctx.institution.id, `${ctx.person.name} set what ${position.name} is responsible for.`);
+  recordHistory(ctx.institution.id, `${ctx.person.name} set what ${position.name} is responsible for.`, {
+    subjectType: SUBJECT_TYPE,
+    subjectId: positionId,
+  });
   return { ok: true };
 }
 
@@ -174,10 +197,17 @@ export async function appointHolderAction(formData: FormData): Promise<ActionRes
   await mockPeopleProvider.appointHolder({ positionId, personId, appointmentType });
   const appointedName =
     personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
-  recordHistory(ctx.institution.id, `${ctx.person.name} appointed ${appointedName} to ${position.name}.`);
+  recordHistory(ctx.institution.id, `${ctx.person.name} appointed ${appointedName} to ${position.name}.`, {
+    subjectType: SUBJECT_TYPE,
+    subjectId: positionId,
+  });
   return { ok: true };
 }
 
+/** Ending an appointment is exactly as institutionally meaningful as
+ *  making one — the same discipline the Platform Integration Sprint
+ *  applied everywhere: no silent state transitions. Appointing someone
+ *  was always recorded; ending their holding wasn't, until now. */
 export async function endHolderAction(formData: FormData): Promise<ActionResult> {
   const ctx = await getIdentityContext();
   if (!ctx) return { ok: false, error: "Sign in first." };
@@ -186,7 +216,23 @@ export async function endHolderAction(formData: FormData): Promise<ActionResult>
   const holderId = String(formData.get("holderId") ?? "").trim();
   if (!holderId) return { ok: false, error: "Missing holder id." };
 
-  return mockPeopleProvider.endHolder(holderId);
+  const holder = await mockPeopleProvider.getPositionHolder(holderId);
+  if (!holder) return { ok: false, error: "Not found." };
+  const position = await mockPeopleProvider.getPosition(holder.positionId);
+  if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
+
+  const result = await mockPeopleProvider.endHolder(holderId);
+  if (!result.ok) return result;
+
+  const holderName =
+    holder.personId === ctx.person.id
+      ? "their own"
+      : `${(await mockIdentityProvider.getPerson(holder.personId))?.name ?? "someone"}'s`;
+  recordHistory(ctx.institution.id, `${ctx.person.name} ended ${holderName} time as ${position.name}.`, {
+    subjectType: SUBJECT_TYPE,
+    subjectId: position.id,
+  });
+  return { ok: true };
 }
 
 export async function addAffiliationAction(formData: FormData): Promise<ActionResult> {
@@ -198,7 +244,9 @@ export async function addAffiliationAction(formData: FormData): Promise<ActionRe
   const label = String(formData.get("label") ?? "").trim();
   if (!personId || !label) return { ok: false, error: "Missing required fields." };
 
-  await mockPeopleProvider.addAffiliation({ institutionId: ctx.institution.id, personId, label });
+  const affiliation = await mockPeopleProvider.addAffiliation({ institutionId: ctx.institution.id, personId, label });
+  const personName = personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
+  recordHistory(ctx.institution.id, `${ctx.person.name} added ${personName} as a "${affiliation.label}" affiliation.`);
   return { ok: true };
 }
 
@@ -210,7 +258,16 @@ export async function endAffiliationAction(formData: FormData): Promise<ActionRe
   const affiliationId = String(formData.get("affiliationId") ?? "").trim();
   if (!affiliationId) return { ok: false, error: "Missing affiliation id." };
 
-  return mockPeopleProvider.endAffiliation(affiliationId);
+  const affiliation = await mockPeopleProvider.getAffiliation(affiliationId);
+  if (!affiliation || affiliation.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
+
+  const result = await mockPeopleProvider.endAffiliation(affiliationId);
+  if (!result.ok) return result;
+
+  const personName =
+    affiliation.personId === ctx.person.id ? "their own" : `${(await mockIdentityProvider.getPerson(affiliation.personId))?.name ?? "someone"}'s`;
+  recordHistory(ctx.institution.id, `${ctx.person.name} ended ${personName} "${affiliation.label}" affiliation.`);
+  return { ok: true };
 }
 
 export async function grantCapabilityAction(formData: FormData): Promise<ActionResult> {
@@ -222,7 +279,9 @@ export async function grantCapabilityAction(formData: FormData): Promise<ActionR
   const label = String(formData.get("label") ?? "").trim();
   if (!personId || !label) return { ok: false, error: "Missing required fields." };
 
-  await mockPeopleProvider.grantCapability({ institutionId: ctx.institution.id, personId, label });
+  const capability = await mockPeopleProvider.grantCapability({ institutionId: ctx.institution.id, personId, label });
+  const personName = personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
+  recordHistory(ctx.institution.id, `${ctx.person.name} granted ${personName} the "${capability.label}" capability.`);
   return { ok: true };
 }
 
@@ -234,7 +293,27 @@ export async function revokeCapabilityAction(formData: FormData): Promise<Action
   const capabilityId = String(formData.get("capabilityId") ?? "").trim();
   if (!capabilityId) return { ok: false, error: "Missing capability id." };
 
-  return mockPeopleProvider.revokeCapability(capabilityId);
+  const capability = await mockPeopleProvider.getCapability(capabilityId);
+  if (!capability || capability.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
+
+  const result = await mockPeopleProvider.revokeCapability(capabilityId);
+  if (!result.ok) return result;
+
+  const personName =
+    capability.personId === ctx.person.id ? "their own" : `${(await mockIdentityProvider.getPerson(capability.personId))?.name ?? "someone"}'s`;
+  recordHistory(ctx.institution.id, `${ctx.person.name} revoked ${personName} "${capability.label}" capability.`);
+  return { ok: true };
+}
+
+/** A Position's own Timeline — its filtered slice of institutional
+ *  History, the same read pattern Community's Contact detail view and
+ *  Work's own Timeline already use. */
+export async function getPositionHistoryAction(positionId: string): Promise<HistoryEntry[]> {
+  const ctx = await getIdentityContext();
+  if (!ctx) return [];
+  const position = await mockPeopleProvider.getPosition(positionId);
+  if (!position || position.institutionId !== ctx.institution.id) return [];
+  return listHistoryForSubject(ctx.institution.id, SUBJECT_TYPE, positionId);
 }
 
 /** Atomic Offboarding — ends every active Position holding and Affiliation

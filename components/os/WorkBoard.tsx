@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addWorkCommentAction,
@@ -9,6 +9,7 @@ import {
   createTaskAction,
   decideApprovalStepAction,
   escalateApprovalStepAction,
+  getWorkItemHistoryAction,
   setTaskStatusAction,
 } from "@/applications/work/actions";
 import type { Approval, ApprovalStatus, StepStatus, TaskStatus, WorkItem } from "@/applications/work/types";
@@ -16,6 +17,7 @@ import { TASK_STATUS_LABELS } from "@/applications/work/types";
 import { PERMISSIONS, PERMISSION_LABELS, type PermissionKey } from "@/engines/authority/types";
 import { getPermissionLabel } from "@/os/institution/terminology";
 import type { InstitutionType } from "@/os/identity/types";
+import type { HistoryEntry } from "@/os/attention/types";
 import { Badge, Button, type BadgeTone } from "@/components/ui";
 
 const TASK_STATUS_TONE: Record<TaskStatus, BadgeTone> = { open: "neutral", in_progress: "accent", complete: "success" };
@@ -347,6 +349,12 @@ function DetailPanel({
   const [err, setErr] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [assigneeId, setAssigneeId] = useState(item.kind === "task" ? item.assigneePersonId ?? "" : "");
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+
+  useEffect(() => {
+    setHistory(null);
+    getWorkItemHistoryAction(item.id).then(setHistory);
+  }, [item.id]);
 
   const personName = (id: string | null) => {
     if (!id) return null;
@@ -360,6 +368,10 @@ function DetailPanel({
       const r = await fn();
       if (!r.ok) return setErr(r.error ?? "Could not complete that.");
       onChanged();
+      // `onChanged` re-fetches this panel's own props but doesn't remount
+      // it, so the Timeline's mount-only fetch never sees a just-recorded
+      // entry on its own — refetch it explicitly alongside every change.
+      getWorkItemHistoryAction(item.id).then(setHistory);
     });
   };
 
@@ -544,6 +556,31 @@ function DetailPanel({
               Add
             </Button>
           </div>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Related records</h3>
+          <p className="mt-1.5 text-sm text-muted">
+            Finance, Community, and Projects will be able to point here once they&apos;re ready to. Nothing to connect yet.
+          </p>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="text-[0.65rem] uppercase tracking-[0.2em] text-dim">Timeline</h3>
+          {history === null ? (
+            <p className="mt-2 text-sm text-muted">Loading…</p>
+          ) : history.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Nothing recorded yet — this item&apos;s own history starts here.</p>
+          ) : (
+            <ul className="mt-2 space-y-2">
+              {history.map((h) => (
+                <li key={h.id} className="text-sm">
+                  <p className="text-text">{h.summary}</p>
+                  <p className="text-xs text-dim">{new Date(h.occurredAt).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </div>

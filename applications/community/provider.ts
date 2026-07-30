@@ -26,6 +26,7 @@ export interface CommunityProvider {
     direction: Direction;
     type: string;
     createdByPersonId: string;
+    projectId: string | null;
   }): Promise<Contact>;
 
   updateContact(
@@ -48,4 +49,5 @@ export interface CommunityProvider {
   setRelationshipStatus(relationshipId: string, status: RelationshipStatus): Promise<Relationship | null>;
 
   addDocumentRef(contactId: string, label: string): Promise<DocumentRef | null>;
+  setContactProject(contactId: string, projectId: string | null): Promise<Contact | null>;
 }

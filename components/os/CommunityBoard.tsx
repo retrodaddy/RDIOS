@@ -370,6 +370,7 @@ function ContactDetailDrawer({
       if (!r.ok) return setErr(r.error ?? "Could not complete that.");
       if (successMessage) toast.notify("success", successMessage);
       onChanged();
+      getContactHistoryAction(contact.id).then(setHistory);
     });
   };
 
