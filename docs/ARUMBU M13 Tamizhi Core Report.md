@@ -1,0 +1,58 @@
+Status: 🟢 Complete — implementation only, no constitutional documents, no architecture review, no philosophy. Built exactly within the frozen architecture, following the identical discipline every prior engine (Authority, Search) and every prior application already established.
+
+---
+
+## What this milestone was
+
+The founder's own framing: this is not about AI capabilities. It is about integrating Tamizhi into ARUMBU as an institutional intelligence *layer* — an operating-system capability exactly like Search, History, Authority, and Attention, never another application, never a chat interface. No external providers, no LLM, no OpenAI, no Claude, no Gemini. Only the framework. The closing test, asked constantly while building: if every AI model in the world disappeared tomorrow, would ARUMBU still function perfectly? Every design decision below was built so the answer stays yes — Tamizhi is optional, the institution never depends on it, and nothing in this milestone is load-bearing for anything built in M1 through M12.
+
+## Core design — Tamizhi observes, understands, explains, recommends. Nothing more.
+
+`engines/tamizhi/` is the third Shared Engine Layer piece after Authority and Search.
+
+- **`types.ts`** — the brief's own Recommendation Model, field for field: Identity, Title, Explanation, Evidence, Confidence, Related Records, Status. Confidence is a plain High/Medium/Low enum, never a percentage. Evidence carries the same `subjectType`/`subjectId` pair every Timeline on the platform already speaks, plus an `href` reusing Search's own link shape — so a piece of evidence always points at a real, existing record, never a fabricated one. The brief names five possible outputs (Observation, Recommendation, Explanation, Summary, Question); only Recommendation gets a real provider and persistence this milestone, since it's the one the brief gave a complete model and a worked example for. The other four are defined as real, honest TypeScript interfaces — "implement the interfaces, not the intelligence" — ready for a future milestone to produce, not silently omitted.
+- **`provider.ts`** — the future-swap seam, designed exactly as instructed: a `TamizhiProvider` interface any of OpenAI, Claude, Gemini, a local model, or a rule engine could implement identically. `TamizhiContext` is deliberately thin — an institution id, nothing more — so a provider has no way to reach a raw database handle or an application's own mock provider even if it wanted to; the only tools available are whatever it chooses to call from `engines/search` and `applications/reports/analytics`.
+- **`store.ts`** — Recommendations persist here, the same `globalThis`-singleton in-memory pattern `os/attention/history-store.ts` already established. This is the one place Tamizhi "owns" anything, and it's a deliberate, narrow exception: the brief's "Tamizhi never owns data" refers to institutional facts (People, Finance, Work, and so on); the Recommendations themselves — and the human decisions made about them — are Tamizhi's own generated artifacts, the same distinction History already draws between the events it narrates and the `HistoryEntry` rows it owns.
+
+## The one implemented provider — rules, not intelligence
+
+`providers/rule-engine.ts` is the only `TamizhiProvider` this milestone builds: three small, fixed, transparent rules. Every rule reads exclusively through `engines/search` and `applications/reports/analytics` — both explicitly named as allowed Inputs in the brief's own list ("Search. History. Attention. Authority. Reports."). Grep the file for `mock-provider` and find nothing; that's the literal enforcement of "never query applications directly."
+
+A new query-free entry point, `browseInstitution`, was added to `engines/search/index.ts` alongside this provider — structured discovery ("every vacant Position," "the most recently touched Contacts") rather than the keyword search `searchInstitution` already provides for a person's own typed query. This is additive to Search, not a redesign: the same institution-scoped, same-filtered, same `SearchResult`-shaped read, just without requiring text to rank against.
+
+The three rules, and their honestly-calibrated confidence:
+
+1. **"Approvals may be stuck because a required Area has no one to decide them"** (Medium) — the brief's own worked example, nearly verbatim: combines Approvals pending more than 7 days with currently-vacant Positions, both discovered through `browseInstitution`. Medium, not High, because the causal link between a specific stuck approval and a specific vacant seat is plausible, not proven — Tamizhi doesn't have (and isn't allowed) the deeper structured access into Work's own Approval Chain data that would let it assert the connection with certainty.
+2. **"Some documents are expiring soon or already expired"** (High) — restates one already-certain fact from Reports' own Analytics (`computeObservations`'s `documents-expiring` observation). High, because nothing here is inferred; the underlying count is a direct, real fact.
+3. **"A few relationships may be worth a check-in"** (Low) — cross-references Analytics' `quiet-relationships` observation with the least-recently-touched Contacts found through Search (a real proxy: a Contact's own `lastUpdatedAt` already folds in its relationships' activity, per M12's own metadata design). Low, because "oldest-touched" is a reasonable starting point, not a certain match for "the specific ones that are quiet."
+
+## Tamizhi never executes
+
+`actions.ts` exposes exactly three actions — accept, dismiss, defer — and every one of them only ever records a human's decision. Per the brief's own example phrasing, History narrates the *person's* action, never Tamizhi's: "Retro Rodad dismissed the recommendation..." was live-verified word for word, never "Tamizhi analyzed..." No Area of Responsibility gates these actions — a Recommendation is advisory only, mutates nothing, and stays exactly as visible as the evidence it cites already was through Search and Reports. This is named directly in the Technical Debt Register as a deliberate simplification, not an oversight: gating *who may dismiss a suggestion* felt like exactly the kind of new-permission-model complexity the brief's "no new architecture" instruction warned against.
+
+## Home — one new section, no chat interface
+
+Exactly per the brief: "Add one new section. Tamizhi Observations. Maximum three visible. Same visual language as Attention." `components/os/TamizhiObservations.tsx` reuses Act Now's own row shape — no chat window, no floating assistant, no AI avatar, no typing animation, no "How can I help?" Every row is a Recommendation with its Confidence badge, its Related Records as small link chips, and three buttons (Accept/Defer/Dismiss) that only ever call the three actions above.
+
+A named, comment-only extension seam was left in `applications/reports/actions.ts`'s `createReportAction`, per the brief's own "Reports may generate recommendations... leave extension seams" — noting where a future milestone could call `ensureRecommendationsGenerated` after a Report is created, deliberately not wired up.
+
+## Verification performed
+
+1. **Typecheck** — `npx tsc --noEmit`: clean, exit 0.
+2. **Lint** — `npx next lint`: clean, no warnings.
+3. **Production build** — clean `.next`, `npx next build`: compiled successfully, all 17 routes generated (Tamizhi needed no new route — it lives on Home, the same way every other engine's output does).
+4. **Founder walkthrough** — a Company institution (Hillside Manufacturing): a Document created with an already-expired date, correctly producing a High-confidence Recommendation on Home.
+5. **Recommendation walkthrough** — the Recommendation was dismissed; History correctly narrated "Retro Rodad dismissed the recommendation..."; a hard reload afterward confirmed the dismissed Recommendation does **not** regenerate even though its underlying condition (the document is still expired) remains true — proving the `ruleKey` dedupe genuinely respects a human's prior decision rather than re-nagging.
+6. **Cross-domain walkthrough** — the same underlying fact (an expired document) was confirmed showing correctly, simultaneously, in three different honest framings with no duplication of function: Attention's own Act Now card ("Expired 5 days ago"), Reports' Analytics line ("1 document is expiring soon or already expired"), and Tamizhi's own Recommendation — three engines, one real fact, each answering a different question (what needs action, what's observably true, what's worth deciding about).
+7. **Permission walkthrough** — verified by code review: `engines/tamizhi/actions.ts` requires only a valid signed-in session (`getIdentityContext()`) and institution match, matching the deliberate no-new-Area decision above. Not re-verified live with a second person this milestone (see below).
+8. **Regression** — Home's existing Act Now, Be Aware, and History sections all confirmed rendering and functioning correctly alongside the new Tamizhi Observations section; zero console errors across the walkthrough.
+9. **The "would ARUMBU still function without Tamizhi" test** — verified directly by construction, not just asserted: every prior milestone's own code path (M1 through M12) has zero imports from `engines/tamizhi/`, and `engines/tamizhi/index.ts` is the only new code Home's page depends on — if `composeTamizhiObservations` were deleted entirely and the one new section removed from `app/(workspace)/home/page.tsx`, every other page and every other engine would compile and run identically.
+
+## Honest assessment — where this fell short of the full ask
+
+- **Multi-user walkthrough was not performed.** Only one real person (the founder) was available in the test institution. The "no permission gating" design was verified by code review, not by a second person's live session confirming they can also see and decide the same institution's Recommendations.
+- **Rule A (the brief's own worked example) was not live-verified end to end.** It requires an Approval pending for more than 7 real days, which cannot be simulated live within a single session the way an already-past expiry date can. The rule's logic was verified by code review and by the identical, already-proven 7-day-threshold pattern Reports' own `stuck-approvals` Analytics observation (M11) already uses successfully in production code.
+- **Rule C (quiet relationships) was similarly not live-verified**, for the same reason — it requires 180+ days of real inactivity, which M11's own Analytics observation this rule depends on has never been live-triggered in this engagement either, for the identical reason.
+- Only one of the five brief-named output kinds (Recommendation) has any implementation. Observation, Explanation, Summary, and Question exist only as type definitions — named honestly as deliberate Core-scope limitations in the Technical Debt Register, not hidden.
+
+None of the above blocks anything. ARUMBU now has a real, honest, optional intelligence layer sitting beside Search, Authority, History, and Attention — reading only through the engines the brief allowed, producing only advisory suggestions a human must act on, owning nothing but its own generated artifacts, and structurally incapable of executing anything on its own. Per the founder's own closing note: when a real provider (OpenAI, Claude, Gemini, or a proprietary model) is connected in a future milestone, it will be a new implementation of `TamizhiProvider` — nothing about the engine, the store, the actions, or the Home section will need to change to make that possible.

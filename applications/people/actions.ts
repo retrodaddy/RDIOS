@@ -1,11 +1,12 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/supabase-history-store";
 import type { HistoryEntry } from "@/os/attention/types";
 import { PERMISSIONS, type PermissionKey } from "@/engines/authority/types";
-import { mockPeopleProvider } from "./mock-provider";
+import { DbError } from "@/lib/db/client";
+import { supabasePeopleProvider } from "./supabase-provider";
 import type { AppointmentType, Position } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -45,9 +46,9 @@ export async function createPositionAction(formData: FormData): Promise<ActionRe
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { ok: false, error: "Position name is required." };
   const reportsTo = String(formData.get("reportsToPositionId") ?? "").trim();
-  const existing = await mockPeopleProvider.listPositions(ctx.institution.id);
+  const existing = await supabasePeopleProvider.listPositions(ctx.institution.id);
 
-  const position = await mockPeopleProvider.createPosition({
+  const position = await supabasePeopleProvider.createPosition({
     institutionId: ctx.institution.id,
     name,
     reportsToPositionIds: reportsTo ? [reportsTo] : [],
@@ -76,7 +77,7 @@ export async function createPositionOnCanvasAction(input: {
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Position name is required." };
 
-  const position = await mockPeopleProvider.createPosition({
+  const position = await supabasePeopleProvider.createPosition({
     institutionId: ctx.institution.id,
     name,
     reportsToPositionIds: [],
@@ -103,10 +104,10 @@ export async function updatePositionParentsAction(
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("organization.manage")) return notResponsible("Managing positions");
 
-  const position = await mockPeopleProvider.getPosition(positionId);
+  const position = await supabasePeopleProvider.getPosition(positionId);
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
 
-  const result = await mockPeopleProvider.updatePositionParents(positionId, reportsToPositionIds);
+  const result = await supabasePeopleProvider.updatePositionParents(positionId, reportsToPositionIds);
   if (!result.ok) return { ok: false, error: result.error };
 
   recordHistory(ctx.institution.id, `${ctx.person.name} changed ${position.name}'s reporting line.`, {
@@ -123,10 +124,10 @@ export async function movePositionAction(positionId: string, canvasX: number, ca
   const ctx = await getIdentityContext();
   if (!ctx) return { ok: false, error: "Sign in first." };
 
-  const position = await mockPeopleProvider.getPosition(positionId);
+  const position = await supabasePeopleProvider.getPosition(positionId);
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
 
-  await mockPeopleProvider.movePosition(positionId, canvasX, canvasY);
+  await supabasePeopleProvider.movePosition(positionId, canvasX, canvasY);
   return { ok: true };
 }
 
@@ -138,12 +139,12 @@ export async function updatePositionDetailsAction(
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("organization.manage")) return notResponsible("Managing positions");
 
-  const position = await mockPeopleProvider.getPosition(positionId);
+  const position = await supabasePeopleProvider.getPosition(positionId);
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
 
   const renamed = input.name !== undefined && input.name.trim() !== position.name;
   const redescribed = input.description !== undefined && (input.description?.trim() || null) !== position.description;
-  await mockPeopleProvider.updatePositionDetails(positionId, input);
+  await supabasePeopleProvider.updatePositionDetails(positionId, input);
   const subject = { subjectType: SUBJECT_TYPE, subjectId: positionId };
   if (renamed) {
     recordHistory(ctx.institution.id, `${ctx.person.name} renamed ${position.name} to ${input.name!.trim()}.`, subject);
@@ -169,11 +170,11 @@ export async function updatePositionResponsibilitiesAction(
     return { ok: false, error: "Only the institution's founder can set what a position is responsible for." };
   }
 
-  const position = await mockPeopleProvider.getPosition(positionId);
+  const position = await supabasePeopleProvider.getPosition(positionId);
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
 
   const valid = responsibilities.filter((r) => (PERMISSIONS as readonly string[]).includes(r));
-  await mockPeopleProvider.updatePositionResponsibilities(positionId, valid);
+  await supabasePeopleProvider.updatePositionResponsibilities(positionId, valid);
   recordHistory(ctx.institution.id, `${ctx.person.name} set what ${position.name} is responsible for.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: positionId,
@@ -191,12 +192,17 @@ export async function appointHolderAction(formData: FormData): Promise<ActionRes
   const appointmentType = String(formData.get("appointmentType") ?? "").trim() as AppointmentType;
   if (!positionId || !personId || !appointmentType) return { ok: false, error: "Missing required fields." };
 
-  const position = await mockPeopleProvider.getPosition(positionId);
+  const position = await supabasePeopleProvider.getPosition(positionId);
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Position not found." };
 
-  await mockPeopleProvider.appointHolder({ positionId, personId, appointmentType });
+  try {
+    await supabasePeopleProvider.appointHolder({ positionId, personId, appointmentType });
+  } catch (err) {
+    if (err instanceof DbError) return { ok: false, error: "Couldn't save this appointment. Please try again." };
+    throw err;
+  }
   const appointedName =
-    personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
+    personId === ctx.person.id ? "themselves" : (await supabaseIdentityProvider.getPerson(personId))?.name ?? "someone";
   recordHistory(ctx.institution.id, `${ctx.person.name} appointed ${appointedName} to ${position.name}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: positionId,
@@ -216,18 +222,18 @@ export async function endHolderAction(formData: FormData): Promise<ActionResult>
   const holderId = String(formData.get("holderId") ?? "").trim();
   if (!holderId) return { ok: false, error: "Missing holder id." };
 
-  const holder = await mockPeopleProvider.getPositionHolder(holderId);
+  const holder = await supabasePeopleProvider.getPositionHolder(holderId);
   if (!holder) return { ok: false, error: "Not found." };
-  const position = await mockPeopleProvider.getPosition(holder.positionId);
+  const position = await supabasePeopleProvider.getPosition(holder.positionId);
   if (!position || position.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
 
-  const result = await mockPeopleProvider.endHolder(holderId);
+  const result = await supabasePeopleProvider.endHolder(holderId);
   if (!result.ok) return result;
 
   const holderName =
     holder.personId === ctx.person.id
       ? "their own"
-      : `${(await mockIdentityProvider.getPerson(holder.personId))?.name ?? "someone"}'s`;
+      : `${(await supabaseIdentityProvider.getPerson(holder.personId))?.name ?? "someone"}'s`;
   recordHistory(ctx.institution.id, `${ctx.person.name} ended ${holderName} time as ${position.name}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: position.id,
@@ -244,8 +250,8 @@ export async function addAffiliationAction(formData: FormData): Promise<ActionRe
   const label = String(formData.get("label") ?? "").trim();
   if (!personId || !label) return { ok: false, error: "Missing required fields." };
 
-  const affiliation = await mockPeopleProvider.addAffiliation({ institutionId: ctx.institution.id, personId, label });
-  const personName = personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
+  const affiliation = await supabasePeopleProvider.addAffiliation({ institutionId: ctx.institution.id, personId, label });
+  const personName = personId === ctx.person.id ? "themselves" : (await supabaseIdentityProvider.getPerson(personId))?.name ?? "someone";
   recordHistory(ctx.institution.id, `${ctx.person.name} added ${personName} as a "${affiliation.label}" affiliation.`);
   return { ok: true };
 }
@@ -258,14 +264,14 @@ export async function endAffiliationAction(formData: FormData): Promise<ActionRe
   const affiliationId = String(formData.get("affiliationId") ?? "").trim();
   if (!affiliationId) return { ok: false, error: "Missing affiliation id." };
 
-  const affiliation = await mockPeopleProvider.getAffiliation(affiliationId);
+  const affiliation = await supabasePeopleProvider.getAffiliation(affiliationId);
   if (!affiliation || affiliation.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
 
-  const result = await mockPeopleProvider.endAffiliation(affiliationId);
+  const result = await supabasePeopleProvider.endAffiliation(affiliationId);
   if (!result.ok) return result;
 
   const personName =
-    affiliation.personId === ctx.person.id ? "their own" : `${(await mockIdentityProvider.getPerson(affiliation.personId))?.name ?? "someone"}'s`;
+    affiliation.personId === ctx.person.id ? "their own" : `${(await supabaseIdentityProvider.getPerson(affiliation.personId))?.name ?? "someone"}'s`;
   recordHistory(ctx.institution.id, `${ctx.person.name} ended ${personName} "${affiliation.label}" affiliation.`);
   return { ok: true };
 }
@@ -279,8 +285,8 @@ export async function grantCapabilityAction(formData: FormData): Promise<ActionR
   const label = String(formData.get("label") ?? "").trim();
   if (!personId || !label) return { ok: false, error: "Missing required fields." };
 
-  const capability = await mockPeopleProvider.grantCapability({ institutionId: ctx.institution.id, personId, label });
-  const personName = personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
+  const capability = await supabasePeopleProvider.grantCapability({ institutionId: ctx.institution.id, personId, label });
+  const personName = personId === ctx.person.id ? "themselves" : (await supabaseIdentityProvider.getPerson(personId))?.name ?? "someone";
   recordHistory(ctx.institution.id, `${ctx.person.name} granted ${personName} the "${capability.label}" capability.`);
   return { ok: true };
 }
@@ -293,14 +299,14 @@ export async function revokeCapabilityAction(formData: FormData): Promise<Action
   const capabilityId = String(formData.get("capabilityId") ?? "").trim();
   if (!capabilityId) return { ok: false, error: "Missing capability id." };
 
-  const capability = await mockPeopleProvider.getCapability(capabilityId);
+  const capability = await supabasePeopleProvider.getCapability(capabilityId);
   if (!capability || capability.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
 
-  const result = await mockPeopleProvider.revokeCapability(capabilityId);
+  const result = await supabasePeopleProvider.revokeCapability(capabilityId);
   if (!result.ok) return result;
 
   const personName =
-    capability.personId === ctx.person.id ? "their own" : `${(await mockIdentityProvider.getPerson(capability.personId))?.name ?? "someone"}'s`;
+    capability.personId === ctx.person.id ? "their own" : `${(await supabaseIdentityProvider.getPerson(capability.personId))?.name ?? "someone"}'s`;
   recordHistory(ctx.institution.id, `${ctx.person.name} revoked ${personName} "${capability.label}" capability.`);
   return { ok: true };
 }
@@ -311,7 +317,7 @@ export async function revokeCapabilityAction(formData: FormData): Promise<Action
 export async function getPositionHistoryAction(positionId: string): Promise<HistoryEntry[]> {
   const ctx = await getIdentityContext();
   if (!ctx) return [];
-  const position = await mockPeopleProvider.getPosition(positionId);
+  const position = await supabasePeopleProvider.getPosition(positionId);
   if (!position || position.institutionId !== ctx.institution.id) return [];
   return listHistoryForSubject(ctx.institution.id, SUBJECT_TYPE, positionId);
 }
@@ -331,7 +337,13 @@ export async function offboardPersonAction(formData: FormData): Promise<ActionRe
   const personId = String(formData.get("personId") ?? "").trim();
   if (!personId) return { ok: false, error: "Missing person id." };
 
-  const result = await mockPeopleProvider.offboardPerson(ctx.institution.id, personId);
+  let result: Awaited<ReturnType<typeof supabasePeopleProvider.offboardPerson>>;
+  try {
+    result = await supabasePeopleProvider.offboardPerson(ctx.institution.id, personId);
+  } catch (err) {
+    if (err instanceof DbError) return { ok: false, error: "Couldn't complete offboarding. Please try again." };
+    throw err;
+  }
   // Offboarding must mean the relationship is over, not just that the
   // Positions and Affiliations sitting on top of it are — closing this gap
   // was the single most important finding of the Product Validation Sprint:
@@ -339,9 +351,9 @@ export async function offboardPersonAction(formData: FormData): Promise<ActionRe
   // Ending the Membership itself is what actually revokes access, since
   // every request re-resolves identity from a fresh, active-only lookup
   // (os/identity/session.ts) rather than trusting anything cached.
-  await mockIdentityProvider.endMembership(ctx.institution.id, personId);
+  await supabaseIdentityProvider.endMembership(ctx.institution.id, personId);
   const offboardedName =
-    personId === ctx.person.id ? "themselves" : (await mockIdentityProvider.getPerson(personId))?.name ?? "someone";
+    personId === ctx.person.id ? "themselves" : (await supabaseIdentityProvider.getPerson(personId))?.name ?? "someone";
   recordHistory(
     ctx.institution.id,
     `${ctx.person.name} offboarded ${offboardedName} (${result.closedPositions} position(s), ${result.closedAffiliations} affiliation(s) closed) — their access to ${ctx.institution.name} has ended.`

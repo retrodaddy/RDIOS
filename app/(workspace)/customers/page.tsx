@@ -1,13 +1,13 @@
 import { requireIdentity } from "@/os/identity/session";
-import { mockCommunityProvider } from "@/applications/community/mock-provider";
+import { supabaseCommunityProvider } from "@/applications/community/supabase-provider";
 import { CommunityBoard } from "@/components/os/CommunityBoard";
 
 export const dynamic = "force-dynamic";
 
-export default async function CommunityPage() {
+export default async function CommunityPage({ searchParams }: { searchParams: { open?: string } }) {
   const ctx = await requireIdentity("/customers");
 
-  const contacts = await mockCommunityProvider.listContacts(ctx.institution.id);
+  const contacts = await supabaseCommunityProvider.listContacts(ctx.institution.id);
   const active = contacts.filter((c) => c.status === "active");
 
   return (
@@ -20,7 +20,11 @@ export default async function CommunityPage() {
           : `${active.length} recorded ${active.length === 1 ? "contact" : "contacts"}.`}
       </p>
 
-      <CommunityBoard canManage={ctx.permissions.has("community.manage")} initialContacts={contacts} />
+      <CommunityBoard
+        canManage={ctx.permissions.has("community.manage")}
+        initialContacts={contacts}
+        initialSelectedId={searchParams.open ?? null}
+      />
     </div>
   );
 }

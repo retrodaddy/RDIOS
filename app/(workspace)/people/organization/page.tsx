@@ -1,28 +1,28 @@
 import Link from "next/link";
 import { requireIdentity } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
 import { OrganizationCanvas } from "@/components/os/OrganizationCanvas";
 import type { RosterPerson } from "@/components/os/PositionSidePanel";
 
 export const dynamic = "force-dynamic";
 
-export default async function OrganizationPage() {
+export default async function OrganizationPage({ searchParams }: { searchParams: { open?: string } }) {
   const ctx = await requireIdentity("/people/organization");
 
   const [memberships, positions] = await Promise.all([
-    mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
-    mockPeopleProvider.listPositions(ctx.institution.id),
+    supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
+    supabasePeopleProvider.listPositions(ctx.institution.id),
   ]);
 
   const rosterMemberships = memberships.filter((m) => m.status === "active" || m.status === "invited");
-  const rosterPeople = await Promise.all(rosterMemberships.map((m) => mockIdentityProvider.getPerson(m.personId)));
+  const rosterPeople = await Promise.all(rosterMemberships.map((m) => supabaseIdentityProvider.getPerson(m.personId)));
   const roster: RosterPerson[] = rosterPeople
     .map((person, i) => (person ? { ...person, status: rosterMemberships[i].status as "active" | "invited" } : null))
     .filter((p): p is RosterPerson => p !== null);
 
   const holdersEntries = await Promise.all(
-    positions.map(async (p) => [p.id, await mockPeopleProvider.listPositionHolders(p.id)] as const)
+    positions.map(async (p) => [p.id, await supabasePeopleProvider.listPositionHolders(p.id)] as const)
   );
   const holdersByPosition = Object.fromEntries(holdersEntries);
 
@@ -51,6 +51,7 @@ export default async function OrganizationPage() {
           canManage={ctx.permissions.has("organization.manage")}
           isFounder={ctx.institution.founderPersonId === ctx.person.id}
           institutionType={ctx.institution.type}
+          initialSelectedId={searchParams.open ?? null}
         />
       </div>
     </div>

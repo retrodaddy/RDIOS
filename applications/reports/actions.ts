@@ -1,9 +1,9 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
-import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/supabase-history-store";
 import type { HistoryEntry } from "@/os/attention/types";
-import { mockReportsProvider } from "./mock-provider";
+import { supabaseReportsProvider } from "./supabase-provider";
 import { computeSnapshot } from "./snapshot";
 import { REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, type Report, type ReportCategory, type ReportFilters } from "./types";
 
@@ -16,7 +16,7 @@ function notResponsible(what: string): ActionResult {
 }
 
 async function getOwnedReport(id: string, institutionId: string): Promise<Report | null> {
-  const report = await mockReportsProvider.getReport(id);
+  const report = await supabaseReportsProvider.getReport(id);
   if (!report || report.institutionId !== institutionId) return null;
   return report;
 }
@@ -37,6 +37,16 @@ function parseFilters(formData: FormData): ReportFilters {
  *  not regenerate automatically." Nothing about this Report changes
  *  again after this call except its title/description (`updateReport
  *  DetailsAction`) — the numbers inside `snapshot` are locked. */
+// Extension seam (M13 brief, "Reports may generate recommendations. Do
+// not implement. Leave extension seams."): once a Report is created
+// below, a future milestone could call into `engines/tamizhi` here —
+// e.g. `ensureRecommendationsGenerated(ctx.institution.id)` — so a
+// freshly generated Financial Summary or Project Summary could prompt
+// Tamizhi to look for something worth surfacing. Deliberately not
+// wired up: M13 only reads Reports' *existing* Analytics output
+// (`applications/reports/analytics.ts`), it never triggers generation
+// from here, and this milestone's own brief was explicit not to build
+// that wiring yet.
 export async function createReportAction(formData: FormData): Promise<ActionResult> {
   const ctx = await getIdentityContext();
   if (!ctx) return { ok: false, error: "Sign in first." };
@@ -52,7 +62,7 @@ export async function createReportAction(formData: FormData): Promise<ActionResu
 
   const snapshot = await computeSnapshot(category as ReportCategory, ctx.institution.id, filters);
 
-  const report = await mockReportsProvider.createReport({
+  const report = await supabaseReportsProvider.createReport({
     institutionId: ctx.institution.id,
     category: category as ReportCategory,
     title,
@@ -80,7 +90,7 @@ export async function updateReportDetailsAction(id: string, formData: FormData):
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { ok: false, error: "Title is required." };
 
-  await mockReportsProvider.updateReportDetails(id, {
+  await supabaseReportsProvider.updateReportDetails(id, {
     title,
     description: String(formData.get("description") ?? "").trim() || null,
   });
@@ -100,7 +110,7 @@ export async function deleteReportAction(id: string): Promise<ActionResult> {
   const report = await getOwnedReport(id, ctx.institution.id);
   if (!report) return { ok: false, error: "Report not found." };
 
-  await mockReportsProvider.deleteReport(id);
+  await supabaseReportsProvider.deleteReport(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} deleted the "${report.title}" report.`);
   return { ok: true };
 }

@@ -49,13 +49,23 @@ function primaryRelationship(contact: Contact): Relationship | null {
 export function CommunityBoard({
   canManage,
   initialContacts,
+  initialSelectedId,
 }: {
   canManage: boolean;
   initialContacts: Contact[];
+  /** Universal Search's own deep-link (M12) — opens straight to this
+   *  Contact's existing drawer, never a duplicate screen. */
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+
+  // Universal Search (M12) — see WorkBoard's identical effect for why
+  // this is needed beyond the useState initializer.
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
   const refresh = () => router.refresh();
 
   const active = initialContacts.filter((c) => c.status === "active");

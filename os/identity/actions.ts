@@ -2,10 +2,10 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { mockIdentityProvider } from "./mock-provider";
+import { supabaseIdentityProvider } from "./supabase-provider";
 import { getIdentityContext, institutionCookieName, sessionCookieName } from "./session";
 import { INSTITUTION_TYPES, type InstitutionType } from "./types";
-import { recordHistory } from "@/os/attention/history-store";
+import { recordHistory } from "@/os/attention/supabase-history-store";
 import { resolveLandingPath } from "@/os/preferences/actions";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -31,7 +31,7 @@ export async function createInstitutionAction(formData: FormData): Promise<Actio
   if (founderName.length < 2) return { ok: false, error: "Enter your name." };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(founderEmail)) return { ok: false, error: "Enter a valid email." };
 
-  const { institution, token } = await mockIdentityProvider.createInstitution({
+  const { institution, token } = await supabaseIdentityProvider.createInstitution({
     institutionName,
     institutionType,
     purpose: purpose || undefined,
@@ -50,12 +50,12 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { ok: false, error: "Enter your email." };
 
-  const result = await mockIdentityProvider.createSessionForEmail(email);
+  const result = await supabaseIdentityProvider.createSessionForEmail(email);
   if ("error" in result) return { ok: false, error: result.error };
 
-  const person = await mockIdentityProvider.getPersonBySessionToken(result.token);
+  const person = await supabaseIdentityProvider.getPersonBySessionToken(result.token);
   if (!person) return { ok: false, error: "Could not resolve your account." };
-  const memberships = await mockIdentityProvider.listMembershipsForPerson(person.id);
+  const memberships = await supabaseIdentityProvider.listMembershipsForPerson(person.id);
   const active = memberships.find((m) => m.status === "active");
   if (!active) {
     const invited = memberships.find((m) => m.status === "invited");
@@ -68,7 +68,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
   }
 
   setSessionCookies(result.token, active.institutionId);
-  const institution = await mockIdentityProvider.getInstitution(active.institutionId);
+  const institution = await supabaseIdentityProvider.getInstitution(active.institutionId);
   redirect(institution ? await resolveLandingPath(person.id, institution.type) : "/home");
 }
 
@@ -95,17 +95,17 @@ export async function inviteAction(formData: FormData): Promise<InviteResult> {
   const name = String(formData.get("name") ?? "").trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Enter a valid email." };
 
-  const membership = await mockIdentityProvider.inviteMembership(ctx.institution.id, email, name || email);
+  const membership = await supabaseIdentityProvider.inviteMembership(ctx.institution.id, email, name || email);
   recordHistory(ctx.institution.id, `${ctx.person.name} invited ${name || email}.`);
   return { ok: true, membershipId: membership.id };
 }
 
 export async function acceptInvitationAction(membershipId: string): Promise<ActionResult> {
-  const result = await mockIdentityProvider.acceptInvitation(membershipId);
+  const result = await supabaseIdentityProvider.acceptInvitation(membershipId);
   if ("error" in result) return { ok: false, error: result.error };
   recordHistory(result.membership.institutionId, `${result.person.name} joined.`);
   setSessionCookies(result.token, result.membership.institutionId);
-  const institution = await mockIdentityProvider.getInstitution(result.membership.institutionId);
+  const institution = await supabaseIdentityProvider.getInstitution(result.membership.institutionId);
   redirect(institution ? await resolveLandingPath(result.person.id, institution.type) : "/home");
 }
 
@@ -118,14 +118,14 @@ export async function cancelInvitationAction(membershipId: string): Promise<Acti
     return { ok: false, error: "Inviting new people isn't your responsibility here." };
   }
 
-  const memberships = await mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id);
+  const memberships = await supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id);
   const target = memberships.find((m) => m.id === membershipId);
   if (!target) return { ok: false, error: "Invitation not found." };
 
-  const result = await mockIdentityProvider.cancelInvitation(membershipId);
+  const result = await supabaseIdentityProvider.cancelInvitation(membershipId);
   if ("error" in result) return { ok: false, error: result.error };
 
-  const person = await mockIdentityProvider.getPerson(target.personId);
+  const person = await supabaseIdentityProvider.getPerson(target.personId);
   recordHistory(ctx.institution.id, `${ctx.person.name} cancelled ${person?.name ?? "an"} invitation.`);
   return { ok: true };
 }

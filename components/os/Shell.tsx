@@ -7,6 +7,7 @@ import { getNavDestinations, getSettingsDestination } from "@/os/navigation";
 import { signOutAction } from "@/os/identity/actions";
 import { setSidebarCollapsedAction } from "@/os/preferences/actions";
 import { BrandMark } from "@/components/ui";
+import { SearchOverlay } from "@/components/os/SearchOverlay";
 import type { InstitutionType } from "@/os/identity/types";
 
 /**
@@ -46,6 +47,7 @@ export function Shell({
   const [collapsed, setCollapsed] = useState(initialSidebarCollapsed);
   const [, startSaving] = useTransition();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Close the mobile drawer on Escape and on navigation, and never leave
   // it open across route changes — a drawer that "forgets" to close after
@@ -92,6 +94,21 @@ export function Shell({
               <div className="text-[0.62rem] uppercase tracking-[0.18em] text-dim">ARUMBU</div>
             </div>
           )}
+        </div>
+
+        <div className={`px-3 ${collapsed ? "flex justify-center" : ""}`}>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            title="Search"
+            aria-label="Search this institution"
+            className={`mb-2 flex items-center gap-2 rounded-md border border-border text-dim transition-colors hover:bg-surface hover:text-text ${
+              collapsed ? "h-8 w-8 justify-center" : "w-full px-3 py-1.5 text-sm"
+            }`}
+          >
+            <span aria-hidden="true">🔍</span>
+            {!collapsed && <span>Search</span>}
+          </button>
         </div>
 
         <nav aria-label="Main" className="flex-1 space-y-0.5 px-3">
@@ -146,7 +163,15 @@ export function Shell({
               ☰
             </span>
           </button>
-          <span className="font-display text-sm">{institutionName}</span>
+          <span className="flex-1 font-display text-sm">{institutionName}</span>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search this institution"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-text hover:bg-surface"
+          >
+            <span aria-hidden="true">🔍</span>
+          </button>
         </header>
         <main className="flex-1">{children}</main>
       </div>
@@ -192,6 +217,8 @@ export function Shell({
           </div>
         </div>
       )}
+
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

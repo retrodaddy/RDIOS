@@ -1,12 +1,13 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/supabase-history-store";
 import type { HistoryEntry } from "@/os/attention/types";
 import { PERMISSION_LABELS } from "@/engines/authority/types";
 import { personCanSatisfyArea } from "@/engines/authority/resolver";
-import { mockFinanceProvider } from "./mock-provider";
+import { DbError } from "@/lib/db/client";
+import { supabaseFinanceProvider } from "./supabase-provider";
 import { resolveExpenseApprovalArea } from "./policy";
 import { ACCOUNT_KINDS, INCOME_SOURCES, PAYMENT_METHODS, type AccountKind, type IncomeSource, type PaymentMethod } from "./types";
 
@@ -27,7 +28,7 @@ function parseAmount(raw: FormDataEntryValue | null): number | null {
 
 async function getOwnedAccount(accountId: string | null, institutionId: string) {
   if (!accountId) return null;
-  const accounts = await mockFinanceProvider.listAccounts(institutionId);
+  const accounts = await supabaseFinanceProvider.listAccounts(institutionId);
   return accounts.find((a) => a.id === accountId) ?? null;
 }
 
@@ -42,7 +43,7 @@ export async function createAccountAction(formData: FormData): Promise<ActionRes
   if (!(ACCOUNT_KINDS as readonly string[]).includes(kind)) return { ok: false, error: "Choose a valid account type." };
   const description = String(formData.get("description") ?? "").trim() || null;
 
-  const account = await mockFinanceProvider.createAccount({
+  const account = await supabaseFinanceProvider.createAccount({
     institutionId: ctx.institution.id,
     name,
     kind: kind as AccountKind,
@@ -61,7 +62,7 @@ export async function archiveAccountAction(accountId: string): Promise<ActionRes
   const account = await getOwnedAccount(accountId, ctx.institution.id);
   if (!account) return { ok: false, error: "Account not found." };
 
-  await mockFinanceProvider.archiveAccount(accountId);
+  await supabaseFinanceProvider.archiveAccount(accountId);
   recordHistory(ctx.institution.id, `${ctx.person.name} archived the "${account.name}" account.`);
   return { ok: true };
 }
@@ -90,7 +91,7 @@ export async function createExpenseAction(formData: FormData): Promise<ActionRes
     return { ok: false, error: "That account doesn't belong to this institution." };
   }
 
-  const expense = await mockFinanceProvider.createExpense({
+  const expense = await supabaseFinanceProvider.createExpense({
     institutionId: ctx.institution.id,
     title,
     description,
@@ -124,7 +125,7 @@ export async function decideExpenseAction(expenseId: string, decision: "approved
   const ctx = await getIdentityContext();
   if (!ctx) return { ok: false, error: "Sign in first." };
 
-  const item = await mockFinanceProvider.getTransaction(expenseId);
+  const item = await supabaseFinanceProvider.getTransaction(expenseId);
   if (!item || item.kind !== "expense" || item.institutionId !== ctx.institution.id) return { ok: false, error: "Expense not found." };
   if (item.approvalStatus !== "pending") return { ok: false, error: "This expense is already decided." };
 
@@ -140,7 +141,13 @@ export async function decideExpenseAction(expenseId: string, decision: "approved
   const canDecide = await canDecideExpense(ctx, item);
   if (!canDecide) return notResponsible(`Deciding the ${PERMISSION_LABELS[area]} step`);
 
-  const result = await mockFinanceProvider.decideExpense(expenseId, ctx.person.id, decision);
+  let result: Awaited<ReturnType<typeof supabaseFinanceProvider.decideExpense>>;
+  try {
+    result = await supabaseFinanceProvider.decideExpense(expenseId, ctx.person.id, decision);
+  } catch (err) {
+    if (err instanceof DbError) return { ok: false, error: "Couldn't record this decision. Please try again." };
+    throw err;
+  }
   if (!result) return { ok: false, error: "Could not record this decision." };
 
   recordHistory(
@@ -177,7 +184,7 @@ export async function createIncomeAction(formData: FormData): Promise<ActionResu
     return { ok: false, error: "That account doesn't belong to this institution." };
   }
 
-  const income = await mockFinanceProvider.createIncome({
+  const income = await supabaseFinanceProvider.createIncome({
     institutionId: ctx.institution.id,
     title,
     description,
@@ -203,10 +210,10 @@ export async function archiveTransactionAction(id: string): Promise<ActionResult
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("finance.manage")) return notResponsible("Managing financial records");
 
-  const item = await mockFinanceProvider.getTransaction(id);
+  const item = await supabaseFinanceProvider.getTransaction(id);
   if (!item || item.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
 
-  await mockFinanceProvider.archiveTransaction(id);
+  await supabaseFinanceProvider.archiveTransaction(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} archived "${item.title}".`, {
     subjectType: TRANSACTION_SUBJECT_TYPE,
     subjectId: id,
@@ -219,11 +226,11 @@ export async function addTransactionDocumentRefAction(id: string, label: string)
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!label.trim()) return { ok: false, error: "Enter a document reference." };
 
-  const item = await mockFinanceProvider.getTransaction(id);
+  const item = await supabaseFinanceProvider.getTransaction(id);
   if (!item || item.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
   if (!ctx.permissions.has("finance.manage")) return notResponsible("Attaching documents");
 
-  await mockFinanceProvider.addTransactionDocumentRef(id, label);
+  await supabaseFinanceProvider.addTransactionDocumentRef(id, label);
   return { ok: true };
 }
 
@@ -235,10 +242,10 @@ export async function setTransactionProjectAction(id: string, projectId: string 
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("finance.manage")) return notResponsible("Managing financial records");
 
-  const item = await mockFinanceProvider.getTransaction(id);
+  const item = await supabaseFinanceProvider.getTransaction(id);
   if (!item || item.institutionId !== ctx.institution.id) return { ok: false, error: "Not found." };
 
-  await mockFinanceProvider.setTransactionProject(id, projectId);
+  await supabaseFinanceProvider.setTransactionProject(id, projectId);
   recordHistory(
     ctx.institution.id,
     projectId ? `${ctx.person.name} linked "${item.title}" to a project.` : `${ctx.person.name} unlinked "${item.title}" from its project.`,
@@ -252,7 +259,7 @@ export async function setTransactionProjectAction(id: string, projectId: string 
 export async function getTransactionHistoryAction(id: string): Promise<HistoryEntry[]> {
   const ctx = await getIdentityContext();
   if (!ctx) return [];
-  const item = await mockFinanceProvider.getTransaction(id);
+  const item = await supabaseFinanceProvider.getTransaction(id);
   if (!item || item.institutionId !== ctx.institution.id) return [];
   return listHistoryForSubject(ctx.institution.id, TRANSACTION_SUBJECT_TYPE, id);
 }
@@ -278,13 +285,13 @@ export async function createAssetAction(formData: FormData): Promise<ActionResul
   const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
   if (acquiredViaExpenseId) {
-    const linked = await mockFinanceProvider.getTransaction(acquiredViaExpenseId);
+    const linked = await supabaseFinanceProvider.getTransaction(acquiredViaExpenseId);
     if (!linked || linked.kind !== "expense" || linked.institutionId !== ctx.institution.id) {
       return { ok: false, error: "That expense doesn't belong to this institution." };
     }
   }
 
-  const asset = await mockFinanceProvider.createAsset({
+  const asset = await supabaseFinanceProvider.createAsset({
     institutionId: ctx.institution.id,
     name,
     category,
@@ -310,11 +317,11 @@ export async function transferCustodianAction(assetId: string, custodianPersonId
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("assets.manage")) return notResponsible("Managing assets");
 
-  const asset = await mockFinanceProvider.getAsset(assetId);
+  const asset = await supabaseFinanceProvider.getAsset(assetId);
   if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
 
-  await mockFinanceProvider.transferCustodian(assetId, custodianPersonId);
-  const name = custodianPersonId ? (await mockIdentityProvider.getPerson(custodianPersonId))?.name ?? "Someone" : null;
+  await supabaseFinanceProvider.transferCustodian(assetId, custodianPersonId);
+  const name = custodianPersonId ? (await supabaseIdentityProvider.getPerson(custodianPersonId))?.name ?? "Someone" : null;
   recordHistory(
     ctx.institution.id,
     name
@@ -330,10 +337,10 @@ export async function setAssetStatusAction(assetId: string, status: string): Pro
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("assets.manage")) return notResponsible("Managing assets");
 
-  const asset = await mockFinanceProvider.getAsset(assetId);
+  const asset = await supabaseFinanceProvider.getAsset(assetId);
   if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
 
-  await mockFinanceProvider.setAssetStatus(assetId, status as Parameters<typeof mockFinanceProvider.setAssetStatus>[1]);
+  await supabaseFinanceProvider.setAssetStatus(assetId, status as Parameters<typeof supabaseFinanceProvider.setAssetStatus>[1]);
   recordHistory(ctx.institution.id, `${ctx.person.name} updated "${asset.name}" to ${status.replace("_", " ")}.`, {
     subjectType: ASSET_SUBJECT_TYPE,
     subjectId: assetId,
@@ -346,10 +353,10 @@ export async function setAssetServiceNotesAction(assetId: string, serviceNotes: 
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("assets.manage")) return notResponsible("Managing assets");
 
-  const asset = await mockFinanceProvider.getAsset(assetId);
+  const asset = await supabaseFinanceProvider.getAsset(assetId);
   if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
 
-  await mockFinanceProvider.setAssetServiceNotes(assetId, serviceNotes);
+  await supabaseFinanceProvider.setAssetServiceNotes(assetId, serviceNotes);
   recordHistory(ctx.institution.id, `${ctx.person.name} updated "${asset.name}"'s service notes.`, {
     subjectType: ASSET_SUBJECT_TYPE,
     subjectId: assetId,
@@ -362,11 +369,11 @@ export async function addAssetDocumentRefAction(assetId: string, label: string):
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!label.trim()) return { ok: false, error: "Enter a document reference." };
 
-  const asset = await mockFinanceProvider.getAsset(assetId);
+  const asset = await supabaseFinanceProvider.getAsset(assetId);
   if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
   if (!ctx.permissions.has("assets.manage")) return notResponsible("Attaching documents");
 
-  await mockFinanceProvider.addAssetDocumentRef(assetId, label);
+  await supabaseFinanceProvider.addAssetDocumentRef(assetId, label);
   return { ok: true };
 }
 
@@ -377,10 +384,10 @@ export async function setAssetProjectAction(assetId: string, projectId: string |
   if (!ctx) return { ok: false, error: "Sign in first." };
   if (!ctx.permissions.has("assets.manage")) return notResponsible("Managing assets");
 
-  const asset = await mockFinanceProvider.getAsset(assetId);
+  const asset = await supabaseFinanceProvider.getAsset(assetId);
   if (!asset || asset.institutionId !== ctx.institution.id) return { ok: false, error: "Asset not found." };
 
-  await mockFinanceProvider.setAssetProject(assetId, projectId);
+  await supabaseFinanceProvider.setAssetProject(assetId, projectId);
   recordHistory(
     ctx.institution.id,
     projectId ? `${ctx.person.name} linked "${asset.name}" to a project.` : `${ctx.person.name} unlinked "${asset.name}" from its project.`,
@@ -394,7 +401,7 @@ export async function setAssetProjectAction(assetId: string, projectId: string |
 export async function getAssetHistoryAction(assetId: string): Promise<HistoryEntry[]> {
   const ctx = await getIdentityContext();
   if (!ctx) return [];
-  const asset = await mockFinanceProvider.getAsset(assetId);
+  const asset = await supabaseFinanceProvider.getAsset(assetId);
   if (!asset || asset.institutionId !== ctx.institution.id) return [];
   return listHistoryForSubject(ctx.institution.id, ASSET_SUBJECT_TYPE, assetId);
 }

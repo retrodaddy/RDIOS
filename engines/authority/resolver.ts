@@ -1,5 +1,5 @@
 import "server-only";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
 import type { Institution, Person } from "@/os/identity/types";
 import type { Position } from "@/applications/people/types";
 import { PERMISSIONS, type PermissionKey } from "./types";
@@ -24,11 +24,11 @@ export async function resolvePermissions(institution: Institution, person: Perso
     return new Set(PERMISSIONS);
   }
 
-  const holdings = await mockPeopleProvider.listPositionHoldersForPerson(person.id);
+  const holdings = await supabasePeopleProvider.listPositionHoldersForPerson(person.id);
   const activePositionIds = new Set(holdings.filter((h) => !h.endedAt).map((h) => h.positionId));
   if (activePositionIds.size === 0) return new Set();
 
-  const positions = await mockPeopleProvider.listPositions(institution.id);
+  const positions = await supabasePeopleProvider.listPositions(institution.id);
   const granted = new Set<PermissionKey>();
   for (const position of positions) {
     if (!activePositionIds.has(position.id)) continue;
@@ -44,7 +44,7 @@ export async function resolvePermissions(institution: Institution, person: Perso
  *  §5): a step names an Area, never a person, and this is how it's
  *  resolved back into "who, right now." */
 export async function listPositionsWithResponsibility(institutionId: string, area: PermissionKey): Promise<Position[]> {
-  const positions = await mockPeopleProvider.listPositions(institutionId);
+  const positions = await supabasePeopleProvider.listPositions(institutionId);
   return positions.filter((p) => p.responsibilities.includes(area));
 }
 
@@ -56,7 +56,7 @@ export async function personCanSatisfyArea(institution: Institution, person: Per
   if (institution.founderPersonId === person.id) return true;
   const positions = await listPositionsWithResponsibility(institution.id, area);
   if (positions.length === 0) return false;
-  const holdings = await mockPeopleProvider.listPositionHoldersForPerson(person.id);
+  const holdings = await supabasePeopleProvider.listPositionHoldersForPerson(person.id);
   const activePositionIds = new Set(holdings.filter((h) => !h.endedAt).map((h) => h.positionId));
   return positions.some((p) => activePositionIds.has(p.id));
 }
@@ -65,7 +65,7 @@ export async function personCanSatisfyArea(institution: Institution, person: Per
  *  Used to check whether someone satisfies a step that has been
  *  escalated to a specific Position one hop up the org graph. */
 export async function personHoldsPosition(personId: string, positionId: string): Promise<boolean> {
-  const holdings = await mockPeopleProvider.listPositionHoldersForPerson(personId);
+  const holdings = await supabasePeopleProvider.listPositionHoldersForPerson(personId);
   return holdings.some((h) => h.positionId === positionId && !h.endedAt);
 }
 

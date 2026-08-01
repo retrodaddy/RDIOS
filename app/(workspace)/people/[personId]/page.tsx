@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireIdentity } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
 import { AppointHolderCard } from "@/components/os/AppointHolderCard";
 import { AffiliationsCard } from "@/components/os/AffiliationsCard";
 import { CapabilitiesCard } from "@/components/os/CapabilitiesCard";
@@ -12,15 +12,15 @@ export const dynamic = "force-dynamic";
 export default async function PersonProfilePage({ params }: { params: { personId: string } }) {
   const ctx = await requireIdentity(`/people/${params.personId}`);
 
-  const membership = await mockIdentityProvider.getMembership(params.personId, ctx.institution.id);
-  const person = membership ? await mockIdentityProvider.getPerson(params.personId) : null;
+  const membership = await supabaseIdentityProvider.getMembership(params.personId, ctx.institution.id);
+  const person = membership ? await supabaseIdentityProvider.getPerson(params.personId) : null;
   if (!membership || !person) notFound();
 
   const [holders, affiliations, capabilities, allPositions] = await Promise.all([
-    mockPeopleProvider.listPositionHoldersForPerson(person.id),
-    mockPeopleProvider.listAffiliationsForPerson(person.id),
-    mockPeopleProvider.listCapabilitiesForPerson(person.id),
-    mockPeopleProvider.listPositions(ctx.institution.id),
+    supabasePeopleProvider.listPositionHoldersForPerson(person.id),
+    supabasePeopleProvider.listAffiliationsForPerson(person.id),
+    supabasePeopleProvider.listCapabilitiesForPerson(person.id),
+    supabasePeopleProvider.listPositions(ctx.institution.id),
   ]);
 
   const positionById = new Map(allPositions.map((p) => [p.id, p]));

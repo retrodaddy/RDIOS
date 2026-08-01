@@ -1,10 +1,10 @@
 import "server-only";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
-import { mockWorkProvider } from "@/applications/work/mock-provider";
-import { mockCommunityProvider } from "@/applications/community/mock-provider";
-import { mockProjectsProvider } from "@/applications/projects/mock-provider";
-import { mockDocumentsProvider } from "@/applications/documents/mock-provider";
-import { mockReportsProvider } from "./mock-provider";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
+import { supabaseWorkProvider } from "@/applications/work/supabase-provider";
+import { supabaseCommunityProvider } from "@/applications/community/supabase-provider";
+import { supabaseProjectsProvider } from "@/applications/projects/supabase-provider";
+import { supabaseDocumentsProvider } from "@/applications/documents/supabase-provider";
+import { supabaseReportsProvider } from "./supabase-provider";
 
 /**
  * Analytics — deliberately separate from Reports, per the brief: Reports
@@ -43,9 +43,9 @@ export async function computeObservations(institutionId: string): Promise<Observ
   const observations: Observation[] = [];
 
   // Unfilled positions.
-  const positions = await mockPeopleProvider.listPositions(institutionId);
+  const positions = await supabasePeopleProvider.listPositions(institutionId);
   const activePositions = positions.filter((p) => p.status === "active");
-  const holdersByPosition = await Promise.all(activePositions.map((p) => mockPeopleProvider.listPositionHolders(p.id)));
+  const holdersByPosition = await Promise.all(activePositions.map((p) => supabasePeopleProvider.listPositionHolders(p.id)));
   const unfilled = holdersByPosition.filter((holders) => !holders.some((h) => !h.endedAt)).length;
   if (unfilled > 0) {
     observations.push({
@@ -57,7 +57,7 @@ export async function computeObservations(institutionId: string): Promise<Observ
   }
 
   // Approvals waiting too long.
-  const workItems = await mockWorkProvider.listWorkItems(institutionId);
+  const workItems = await supabaseWorkProvider.listWorkItems(institutionId);
   const stuckApprovals = workItems.filter(
     (i) => i.kind === "approval" && i.status === "pending" && Date.now() - new Date(i.createdAt).getTime() > APPROVAL_STUCK_AFTER_DAYS * 86_400_000
   ).length;
@@ -71,7 +71,7 @@ export async function computeObservations(institutionId: string): Promise<Observ
   }
 
   // Documents expiring or expired.
-  const documents = await mockDocumentsProvider.listDocuments(institutionId);
+  const documents = await supabaseDocumentsProvider.listDocuments(institutionId);
   const expiring = documents.filter(
     (d) => d.status !== "archived" && d.expiresAt && new Date(d.expiresAt).getTime() - Date.now() <= DOCUMENT_EXPIRY_LOOKAHEAD_DAYS * 86_400_000
   ).length;
@@ -87,7 +87,7 @@ export async function computeObservations(institutionId: string): Promise<Observ
   // Relationships going quiet — an earlier, softer threshold than
   // Attention's own 180-day nudge, giving Analytics its own distinct
   // early-warning value instead of just repeating the same fact later.
-  const contacts = await mockCommunityProvider.listContacts(institutionId);
+  const contacts = await supabaseCommunityProvider.listContacts(institutionId);
   let quietRelationships = 0;
   for (const contact of contacts) {
     if (contact.status !== "active") continue;
@@ -107,7 +107,7 @@ export async function computeObservations(institutionId: string): Promise<Observ
   }
 
   // Projects blocked or overdue.
-  const projects = await mockProjectsProvider.listProjects(institutionId);
+  const projects = await supabaseProjectsProvider.listProjects(institutionId);
   const activeProjects = projects.filter((p) => p.status === "active");
   const troubled = activeProjects.filter(
     (p) => p.stage === "Blocked" || (p.targetDate && !p.completedAt && new Date(p.targetDate).getTime() < Date.now())
@@ -124,7 +124,7 @@ export async function computeObservations(institutionId: string): Promise<Observ
   // Trend: expenses rising or falling, comparing the two most recent
   // saved Financial Summary reports. Skipped entirely with fewer than
   // two to compare — no baseline, no honest trend claim.
-  const financialReports = await mockReportsProvider.listReportsByCategory(institutionId, "financial_summary");
+  const financialReports = await supabaseReportsProvider.listReportsByCategory(institutionId, "financial_summary");
   if (financialReports.length >= 2) {
     const [latest, previous] = financialReports;
     const latestExpense = latest.snapshot.metrics.find((m) => m.label === "Expense");

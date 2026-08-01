@@ -1,30 +1,30 @@
 import { requireIdentity } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { mockDocumentsProvider } from "@/applications/documents/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { supabaseDocumentsProvider } from "@/applications/documents/supabase-provider";
 import type { DocumentRelationshipType } from "@/applications/documents/types";
-import { mockProjectsProvider } from "@/applications/projects/mock-provider";
-import { mockWorkProvider } from "@/applications/work/mock-provider";
-import { mockFinanceProvider } from "@/applications/finance/mock-provider";
-import { mockCommunityProvider } from "@/applications/community/mock-provider";
+import { supabaseProjectsProvider } from "@/applications/projects/supabase-provider";
+import { supabaseWorkProvider } from "@/applications/work/supabase-provider";
+import { supabaseFinanceProvider } from "@/applications/finance/supabase-provider";
+import { supabaseCommunityProvider } from "@/applications/community/supabase-provider";
 import { DocumentsBoard, type DocumentsRosterPerson, type RelationshipCandidate } from "@/components/os/DocumentsBoard";
 
 export const dynamic = "force-dynamic";
 
-export default async function DocumentsPage() {
+export default async function DocumentsPage({ searchParams }: { searchParams: { open?: string } }) {
   const ctx = await requireIdentity("/documents");
 
   const [documents, memberships, projects, workItems, transactions, assets, contacts] = await Promise.all([
-    mockDocumentsProvider.listDocuments(ctx.institution.id),
-    mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
-    mockProjectsProvider.listProjects(ctx.institution.id),
-    mockWorkProvider.listWorkItems(ctx.institution.id),
-    mockFinanceProvider.listTransactions(ctx.institution.id),
-    mockFinanceProvider.listAssets(ctx.institution.id),
-    mockCommunityProvider.listContacts(ctx.institution.id),
+    supabaseDocumentsProvider.listDocuments(ctx.institution.id),
+    supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
+    supabaseProjectsProvider.listProjects(ctx.institution.id),
+    supabaseWorkProvider.listWorkItems(ctx.institution.id),
+    supabaseFinanceProvider.listTransactions(ctx.institution.id),
+    supabaseFinanceProvider.listAssets(ctx.institution.id),
+    supabaseCommunityProvider.listContacts(ctx.institution.id),
   ]);
 
   const rosterMemberships = memberships.filter((m) => m.status === "active");
-  const rosterPeople = await Promise.all(rosterMemberships.map((m) => mockIdentityProvider.getPerson(m.personId)));
+  const rosterPeople = await Promise.all(rosterMemberships.map((m) => supabaseIdentityProvider.getPerson(m.personId)));
   const roster: DocumentsRosterPerson[] = rosterPeople
     .filter((p): p is NonNullable<typeof p> => p !== null)
     .map((p) => ({ id: p.id, name: p.name }));
@@ -55,6 +55,7 @@ export default async function DocumentsPage() {
         initialDocuments={documents}
         roster={roster}
         relationshipCandidates={relationshipCandidates}
+        initialSelectedId={searchParams.open ?? null}
       />
     </div>
   );

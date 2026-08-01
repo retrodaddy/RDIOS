@@ -1,12 +1,13 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/supabase-history-store";
 import type { HistoryEntry } from "@/os/attention/types";
 import { PERMISSIONS, PERMISSION_LABELS, type PermissionKey } from "@/engines/authority/types";
 import { findEscalationTarget, personCanSatisfyArea, personHoldsPosition } from "@/engines/authority/resolver";
-import { mockWorkProvider } from "./mock-provider";
+import { DbError } from "@/lib/db/client";
+import { supabaseWorkProvider } from "./supabase-provider";
 import type { TaskStatus, WorkItem } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -18,11 +19,11 @@ function notResponsible(what: string): ActionResult {
 }
 
 async function nameOf(personId: string): Promise<string> {
-  return (await mockIdentityProvider.getPerson(personId))?.name ?? "Someone";
+  return (await supabaseIdentityProvider.getPerson(personId))?.name ?? "Someone";
 }
 
 async function getOwnedWorkItem(id: string, institutionId: string): Promise<WorkItem | null> {
-  const item = await mockWorkProvider.getWorkItem(id);
+  const item = await supabaseWorkProvider.getWorkItem(id);
   if (!item || item.institutionId !== institutionId) return null;
   return item;
 }
@@ -32,13 +33,13 @@ async function getOwnedWorkItem(id: string, institutionId: string): Promise<Work
  *  holder of the Position the step was escalated to? Governance §7:
  *  escalation only ever widens the pool, never narrows or replaces it. */
 async function canActOnCurrentStep(
-  institution: Awaited<ReturnType<typeof mockIdentityProvider.getInstitution>>,
+  institution: Awaited<ReturnType<typeof supabaseIdentityProvider.getInstitution>>,
   personId: string,
   area: PermissionKey,
   escalatedToPositionId: string | null
 ): Promise<boolean> {
   if (!institution) return false;
-  const person = await mockIdentityProvider.getPerson(personId);
+  const person = await supabaseIdentityProvider.getPerson(personId);
   if (!person) return false;
   if (await personCanSatisfyArea(institution, person, area)) return true;
   if (escalatedToPositionId && (await personHoldsPosition(personId, escalatedToPositionId))) return true;
@@ -56,7 +57,7 @@ export async function createTaskAction(formData: FormData): Promise<ActionResult
   const assigneePersonId = String(formData.get("assigneePersonId") ?? "").trim() || null;
   const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
-  const task = await mockWorkProvider.createTask({
+  const task = await supabaseWorkProvider.createTask({
     institutionId: ctx.institution.id,
     title,
     description,
@@ -82,7 +83,7 @@ export async function assignTaskAction(taskId: string, assigneePersonId: string 
   const item = await getOwnedWorkItem(taskId, ctx.institution.id);
   if (!item || item.kind !== "task") return { ok: false, error: "Task not found." };
 
-  await mockWorkProvider.assignTask(taskId, assigneePersonId);
+  await supabaseWorkProvider.assignTask(taskId, assigneePersonId);
   const name = assigneePersonId ? (assigneePersonId === ctx.person.id ? "themselves" : await nameOf(assigneePersonId)) : null;
   recordHistory(
     ctx.institution.id,
@@ -110,7 +111,7 @@ export async function setTaskStatusAction(taskId: string, status: TaskStatus): P
   // `item.status` after the call would already read the *new* status,
   // silently disabling the "reopened" branch below every time.
   const wasComplete = item.status === "complete";
-  await mockWorkProvider.setTaskStatus(taskId, status);
+  await supabaseWorkProvider.setTaskStatus(taskId, status);
   const subject = { subjectType: SUBJECT_TYPE, subjectId: taskId };
   if (status === "complete") {
     recordHistory(ctx.institution.id, `${ctx.person.name} completed "${item.title}".`, subject);
@@ -138,7 +139,7 @@ export async function createApprovalAction(formData: FormData): Promise<ActionRe
   if (chainAreas.length === 0) return { ok: false, error: "An approval needs at least one step." };
   const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
-  const approval = await mockWorkProvider.createApproval({
+  const approval = await supabaseWorkProvider.createApproval({
     institutionId: ctx.institution.id,
     title,
     description,
@@ -172,7 +173,13 @@ export async function decideApprovalStepAction(approvalId: string, decision: "ap
   const canAct = await canActOnCurrentStep(ctx.institution, ctx.person.id, step.area, step.escalatedToPositionId);
   if (!canAct) return notResponsible(`Deciding the ${PERMISSION_LABELS[step.area]} step`);
 
-  const result = await mockWorkProvider.decideCurrentStep(approvalId, ctx.person.id, decision);
+  let result: Awaited<ReturnType<typeof supabaseWorkProvider.decideCurrentStep>>;
+  try {
+    result = await supabaseWorkProvider.decideCurrentStep(approvalId, ctx.person.id, decision);
+  } catch (err) {
+    if (err instanceof DbError) return { ok: false, error: "Couldn't record this decision. Please try again." };
+    throw err;
+  }
   if (!result) return { ok: false, error: "Could not record this decision." };
 
   const subject = { subjectType: SUBJECT_TYPE, subjectId: approvalId };
@@ -207,7 +214,8 @@ export async function escalateApprovalStepAction(approvalId: string): Promise<Ac
   const target = await findEscalationTarget(ctx.institution.id, step.area);
   if (!target) return { ok: false, error: "There's no position above this step's responsibility to escalate to." };
 
-  await mockWorkProvider.escalateCurrentStep(approvalId, target);
+  const result = await supabaseWorkProvider.escalateCurrentStep(approvalId, target);
+  if (!result) return { ok: false, error: "This approval was already resolved." };
   recordHistory(
     ctx.institution.id,
     `${ctx.person.name} escalated "${item.title}" — the ${PERMISSION_LABELS[step.area]} step now also asks whoever it reports to.`,
@@ -238,7 +246,7 @@ export async function setWorkItemProjectAction(workItemId: string, projectId: st
   const item = await getOwnedWorkItem(workItemId, ctx.institution.id);
   if (!item) return { ok: false, error: "Not found." };
 
-  await mockWorkProvider.setWorkItemProject(workItemId, projectId);
+  await supabaseWorkProvider.setWorkItemProject(workItemId, projectId);
   recordHistory(
     ctx.institution.id,
     projectId ? `${ctx.person.name} linked "${item.title}" to a project.` : `${ctx.person.name} unlinked "${item.title}" from its project.`,
@@ -255,6 +263,6 @@ export async function addWorkCommentAction(workItemId: string, text: string): Pr
   const item = await getOwnedWorkItem(workItemId, ctx.institution.id);
   if (!item) return { ok: false, error: "Not found." };
 
-  await mockWorkProvider.addComment(workItemId, ctx.person.id, text);
+  await supabaseWorkProvider.addComment(workItemId, ctx.person.id, text);
   return { ok: true };
 }

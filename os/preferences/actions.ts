@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getIdentityContext } from "@/os/identity/session";
 import { getNavDestinations } from "@/os/navigation";
-import { mockPreferencesProvider } from "./mock-provider";
+import { supabasePreferencesProvider } from "./supabase-provider";
 import { DENSITIES, FONT_SIZES, THEMES, type Density, type FontSize, type Theme } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -16,7 +16,7 @@ export async function resolveLandingPath(
   personId: string,
   institutionType: Parameters<typeof getNavDestinations>[0]
 ): Promise<string> {
-  const prefs = await mockPreferencesProvider.getPreferences(personId);
+  const prefs = await supabasePreferencesProvider.getPreferences(personId);
   if (!prefs.defaultLandingKey) return "/home";
   const destinations = getNavDestinations(institutionType);
   const match = destinations.find((d) => d.key === prefs.defaultLandingKey);
@@ -41,7 +41,7 @@ export async function updatePreferencesAction(formData: FormData): Promise<Actio
   const validKeys = new Set(getNavDestinations(ctx.institution.type).map((d) => d.key));
   const defaultLandingKey = defaultLandingKeyRaw && validKeys.has(defaultLandingKeyRaw) ? defaultLandingKeyRaw : null;
 
-  await mockPreferencesProvider.updatePreferences(ctx.person.id, {
+  await supabasePreferencesProvider.updatePreferences(ctx.person.id, {
     theme,
     fontSize,
     density,
@@ -60,7 +60,7 @@ export async function updatePreferencesAction(formData: FormData): Promise<Actio
 export async function setSidebarCollapsedAction(collapsed: boolean): Promise<ActionResult> {
   const ctx = await getIdentityContext();
   if (!ctx) return { ok: false, error: "Sign in first." };
-  await mockPreferencesProvider.updatePreferences(ctx.person.id, { sidebarCollapsed: collapsed });
+  await supabasePreferencesProvider.updatePreferences(ctx.person.id, { sidebarCollapsed: collapsed });
   revalidatePath("/", "layout");
   return { ok: true };
 }

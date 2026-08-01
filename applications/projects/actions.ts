@@ -1,10 +1,10 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/supabase-history-store";
 import type { HistoryEntry } from "@/os/attention/types";
-import { mockProjectsProvider } from "./mock-provider";
+import { supabaseProjectsProvider } from "./supabase-provider";
 import type { Project, ProjectHealth, ProjectMemberRole, ProjectPriority } from "./types";
 import { PROJECT_HEALTHS, PROJECT_HEALTH_LABELS, PROJECT_MEMBER_ROLES, PROJECT_PRIORITIES } from "./types";
 
@@ -17,11 +17,11 @@ function notResponsible(what: string): ActionResult {
 }
 
 async function nameOf(personId: string): Promise<string> {
-  return (await mockIdentityProvider.getPerson(personId))?.name ?? "Someone";
+  return (await supabaseIdentityProvider.getPerson(personId))?.name ?? "Someone";
 }
 
 async function getOwnedProject(id: string, institutionId: string): Promise<Project | null> {
-  const project = await mockProjectsProvider.getProject(id);
+  const project = await supabaseProjectsProvider.getProject(id);
   if (!project || project.institutionId !== institutionId) return null;
   return project;
 }
@@ -41,7 +41,7 @@ export async function createProjectAction(formData: FormData): Promise<ActionRes
   const startDate = String(formData.get("startDate") ?? "").trim() || null;
   const targetDate = String(formData.get("targetDate") ?? "").trim() || null;
 
-  const project = await mockProjectsProvider.createProject({
+  const project = await supabaseProjectsProvider.createProject({
     institutionId: ctx.institution.id,
     name,
     description,
@@ -76,7 +76,7 @@ export async function updateProjectDetailsAction(id: string, formData: FormData)
   const priority = String(formData.get("priority") ?? project.priority);
   if (!(PROJECT_PRIORITIES as readonly string[]).includes(priority)) return { ok: false, error: "Choose a valid priority." };
 
-  await mockProjectsProvider.updateProjectDetails(id, {
+  await supabaseProjectsProvider.updateProjectDetails(id, {
     name,
     description: String(formData.get("description") ?? "").trim() || null,
     purpose: String(formData.get("purpose") ?? "").trim() || null,
@@ -100,7 +100,7 @@ export async function setProjectOwnerAction(id: string, ownerPersonId: string | 
   const project = await getOwnedProject(id, ctx.institution.id);
   if (!project) return { ok: false, error: "Project not found." };
 
-  await mockProjectsProvider.setProjectOwner(id, ownerPersonId);
+  await supabaseProjectsProvider.setProjectOwner(id, ownerPersonId);
   const name = ownerPersonId ? (ownerPersonId === ctx.person.id ? "themselves" : await nameOf(ownerPersonId)) : null;
   recordHistory(
     ctx.institution.id,
@@ -125,7 +125,7 @@ export async function setProjectStageAction(id: string, stage: string): Promise<
   // provider mutates the same object in place and returns that reference,
   // so reading `project.stage` after this call would already show the new
   // value, silently turning every transition into "X to X."
-  await mockProjectsProvider.setProjectStage(id, stage);
+  await supabaseProjectsProvider.setProjectStage(id, stage);
   recordHistory(ctx.institution.id, `${ctx.person.name} moved "${project.name}" from ${previousStage} to ${stage.trim()}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: project.id,
@@ -143,7 +143,7 @@ export async function setProjectHealthAction(id: string, health: string): Promis
   if (!project) return { ok: false, error: "Project not found." };
   if (project.health === health) return { ok: true };
 
-  await mockProjectsProvider.setProjectHealth(id, health as ProjectHealth);
+  await supabaseProjectsProvider.setProjectHealth(id, health as ProjectHealth);
   recordHistory(
     ctx.institution.id,
     `${ctx.person.name} marked "${project.name}" as ${PROJECT_HEALTH_LABELS[health as ProjectHealth].toLowerCase()}.`,
@@ -162,7 +162,7 @@ export async function addProjectMemberAction(id: string, personId: string, role:
   if (!project) return { ok: false, error: "Project not found." };
   if (project.members.some((m) => m.personId === personId)) return { ok: false, error: "Already part of this project." };
 
-  await mockProjectsProvider.addMember(id, personId, role as ProjectMemberRole);
+  await supabaseProjectsProvider.addMember(id, personId, role as ProjectMemberRole);
   const name = personId === ctx.person.id ? "themselves" : await nameOf(personId);
   recordHistory(ctx.institution.id, `${ctx.person.name} added ${name} to "${project.name}" as ${role === "observer" ? "an observer" : "a member"}.`, {
     subjectType: SUBJECT_TYPE,
@@ -181,7 +181,7 @@ export async function removeProjectMemberAction(id: string, memberId: string): P
   const member = project.members.find((m) => m.id === memberId);
   if (!member) return { ok: false, error: "Member not found." };
 
-  await mockProjectsProvider.removeMember(id, memberId);
+  await supabaseProjectsProvider.removeMember(id, memberId);
   const name = await nameOf(member.personId);
   recordHistory(ctx.institution.id, `${ctx.person.name} removed ${name} from "${project.name}".`, {
     subjectType: SUBJECT_TYPE,
@@ -199,7 +199,7 @@ export async function completeProjectAction(id: string): Promise<ActionResult> {
   if (!project) return { ok: false, error: "Project not found." };
   if (project.status === "archived") return { ok: false, error: "This project is archived." };
 
-  await mockProjectsProvider.completeProject(id);
+  await supabaseProjectsProvider.completeProject(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} completed "${project.name}".`, {
     subjectType: SUBJECT_TYPE,
     subjectId: project.id,
@@ -215,7 +215,7 @@ export async function archiveProjectAction(id: string): Promise<ActionResult> {
   const project = await getOwnedProject(id, ctx.institution.id);
   if (!project) return { ok: false, error: "Project not found." };
 
-  await mockProjectsProvider.archiveProject(id);
+  await supabaseProjectsProvider.archiveProject(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} archived "${project.name}".`, {
     subjectType: SUBJECT_TYPE,
     subjectId: project.id,
@@ -242,6 +242,6 @@ export async function addProjectDocumentRefAction(projectId: string, label: stri
   if (!project) return { ok: false, error: "Project not found." };
   if (!ctx.permissions.has("projects.manage")) return notResponsible("Attaching documents");
 
-  await mockProjectsProvider.addDocumentRef(projectId, label);
+  await supabaseProjectsProvider.addDocumentRef(projectId, label);
   return { ok: true };
 }

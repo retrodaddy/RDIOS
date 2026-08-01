@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireIdentity } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
 import { CreatePositionCard } from "@/components/os/CreatePositionCard";
 import { PositionsTable, type PositionRow } from "@/components/os/PositionsTable";
 
@@ -11,15 +11,15 @@ export default async function PeoplePage() {
   const ctx = await requireIdentity("/people");
 
   const [memberships, positions] = await Promise.all([
-    mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
-    mockPeopleProvider.listPositions(ctx.institution.id),
+    supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
+    supabasePeopleProvider.listPositions(ctx.institution.id),
   ]);
   const active = memberships.filter((m) => m.status === "active");
   const invited = memberships.filter((m) => m.status === "invited");
   const roster = [...active, ...invited];
-  const people = await Promise.all(roster.map((m) => mockIdentityProvider.getPerson(m.personId)));
+  const people = await Promise.all(roster.map((m) => supabaseIdentityProvider.getPerson(m.personId)));
 
-  const holdersByPosition = await Promise.all(positions.map((p) => mockPeopleProvider.listPositionHolders(p.id)));
+  const holdersByPosition = await Promise.all(positions.map((p) => supabasePeopleProvider.listPositionHolders(p.id)));
   const currentHolder = (positionId: string) => {
     const idx = positions.findIndex((p) => p.id === positionId);
     return holdersByPosition[idx]?.find((h) => !h.endedAt) ?? null;

@@ -73,6 +73,7 @@ export function ProjectBoard({
   transactions,
   assets,
   contacts,
+  initialSelectedId,
 }: {
   canManage: boolean;
   initialProjects: Project[];
@@ -81,10 +82,19 @@ export function ProjectBoard({
   transactions: FinanceTransaction[];
   assets: Asset[];
   contacts: Contact[];
+  /** Universal Search's own deep-link (M12) — opens straight to this
+   *  Project's existing drawer, never a duplicate screen. */
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+
+  // Universal Search (M12) — see WorkBoard's identical effect for why
+  // this is needed beyond the useState initializer.
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
   const refresh = () => router.refresh();
 
   const active = initialProjects.filter((p) => p.status === "active");

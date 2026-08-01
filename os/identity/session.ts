@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { mockIdentityProvider } from "./mock-provider";
+import { supabaseIdentityProvider } from "./supabase-provider";
 import { resolvePermissions } from "@/engines/authority/resolver";
 import type { IdentityContext } from "./types";
 
@@ -43,16 +43,16 @@ export const getIdentityContext = cache(async (): Promise<IdentityContext | null
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const person = await mockIdentityProvider.getPersonBySessionToken(token);
+  const person = await supabaseIdentityProvider.getPersonBySessionToken(token);
   if (!person) return null;
 
-  const memberships = await mockIdentityProvider.listMembershipsForPerson(person.id);
+  const memberships = await supabaseIdentityProvider.listMembershipsForPerson(person.id);
   const active = memberships.filter((m) => m.status === "active");
   if (active.length === 0) return null;
 
   const preferredInstitutionId = jar.get(INSTITUTION_COOKIE)?.value;
   const membership = active.find((m) => m.institutionId === preferredInstitutionId) ?? active[0];
-  const institution = await mockIdentityProvider.getInstitution(membership.institutionId);
+  const institution = await supabaseIdentityProvider.getInstitution(membership.institutionId);
   if (!institution) return null;
 
   const permissions = await resolvePermissions(institution, person);

@@ -1,22 +1,22 @@
 import { requireIdentity } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { mockFinanceProvider } from "@/applications/finance/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { supabaseFinanceProvider } from "@/applications/finance/supabase-provider";
 import { MoneyBoard, type MoneyRosterPerson } from "@/components/os/MoneyBoard";
 
 export const dynamic = "force-dynamic";
 
-export default async function MoneyPage() {
+export default async function MoneyPage({ searchParams }: { searchParams: { open?: string; tab?: string } }) {
   const ctx = await requireIdentity("/money");
 
   const [memberships, accounts, transactions, assets] = await Promise.all([
-    mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
-    mockFinanceProvider.listAccounts(ctx.institution.id),
-    mockFinanceProvider.listTransactions(ctx.institution.id),
-    mockFinanceProvider.listAssets(ctx.institution.id),
+    supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
+    supabaseFinanceProvider.listAccounts(ctx.institution.id),
+    supabaseFinanceProvider.listTransactions(ctx.institution.id),
+    supabaseFinanceProvider.listAssets(ctx.institution.id),
   ]);
 
   const rosterMemberships = memberships.filter((m) => m.status === "active");
-  const rosterPeople = await Promise.all(rosterMemberships.map((m) => mockIdentityProvider.getPerson(m.personId)));
+  const rosterPeople = await Promise.all(rosterMemberships.map((m) => supabaseIdentityProvider.getPerson(m.personId)));
   const roster: MoneyRosterPerson[] = rosterPeople.filter((p): p is NonNullable<typeof p> => p !== null);
 
   const activeTransactions = transactions.filter((t) => t.status !== "archived");
@@ -42,6 +42,8 @@ export default async function MoneyPage() {
         initialAccounts={accounts}
         initialTransactions={transactions}
         initialAssets={assets}
+        initialTab={searchParams.tab === "assets" ? "assets" : searchParams.tab === "accounts" ? "accounts" : searchParams.open ? "transactions" : undefined}
+        initialSelectedId={searchParams.open ?? null}
       />
     </div>
   );

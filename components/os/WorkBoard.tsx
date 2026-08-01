@@ -41,6 +41,7 @@ export function WorkBoard({
   myPositionIds,
   institutionType,
   isFounder,
+  initialSelectedId,
 }: {
   initialWorkItems: WorkItem[];
   roster: WorkRosterPerson[];
@@ -50,10 +51,22 @@ export function WorkBoard({
   myPositionIds: string[];
   institutionType: InstitutionType;
   isFounder: boolean;
+  /** Universal Search's own deep-link (M12) — opens straight to this
+   *  Work Item's existing drawer, never a duplicate screen. */
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
   const [creating, setCreating] = useState(false);
+
+  // Universal Search (M12) navigates here client-side with a new
+  // `?open=` id while this board stays mounted — React only honors a
+  // `useState` initializer on first mount, so a second search result
+  // opened back-to-back needs this effect to actually change the
+  // selection, not just the initial value.
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
 
   const items = initialWorkItems;
   const personName = (id: string | null) => {

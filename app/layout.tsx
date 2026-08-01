@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Fraunces } from "next/font/google";
 import "./globals.css";
 import { getIdentityContext } from "@/os/identity/session";
-import { mockPreferencesProvider } from "@/os/preferences/mock-provider";
+import { supabasePreferencesProvider } from "@/os/preferences/supabase-provider";
 import { defaultPreferences } from "@/os/preferences/types";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
  *  before the page below ever decides what it's showing. */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getIdentityContext();
-  const prefs = ctx ? await mockPreferencesProvider.getPreferences(ctx.person.id) : defaultPreferences("");
+  const prefs = ctx ? await supabasePreferencesProvider.getPreferences(ctx.person.id) : defaultPreferences("");
 
   return (
     <html

@@ -1,19 +1,19 @@
 import "server-only";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
 import { INSTITUTION_TYPE_LABELS } from "@/os/identity/types";
 import type { IdentityContext } from "@/os/identity/types";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
-import { mockWorkProvider } from "@/applications/work/mock-provider";
-import { mockFinanceProvider } from "@/applications/finance/mock-provider";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
+import { supabaseWorkProvider } from "@/applications/work/supabase-provider";
+import { supabaseFinanceProvider } from "@/applications/finance/supabase-provider";
 import { resolveExpenseApprovalArea } from "@/applications/finance/policy";
-import { mockCommunityProvider } from "@/applications/community/mock-provider";
+import { supabaseCommunityProvider } from "@/applications/community/supabase-provider";
 import { DIRECTION_LABELS } from "@/applications/community/types";
-import { mockProjectsProvider } from "@/applications/projects/mock-provider";
-import { mockDocumentsProvider } from "@/applications/documents/mock-provider";
+import { supabaseProjectsProvider } from "@/applications/projects/supabase-provider";
+import { supabaseDocumentsProvider } from "@/applications/documents/supabase-provider";
 import { computeObservations } from "@/applications/reports/analytics";
 import { personCanSatisfyArea, personHoldsPosition } from "@/engines/authority/resolver";
 import { PERMISSION_LABELS } from "@/engines/authority/types";
-import { listHistory } from "./history-store";
+import { listHistory } from "./supabase-history-store";
 import type { AttentionItem, BeAwareItem, HistoryEntry } from "./types";
 
 const WARRANTY_LOOKAHEAD_DAYS = 30;
@@ -35,7 +35,7 @@ const DOCUMENT_EXPIRY_LOOKAHEAD_DAYS = 30;
 export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem[]> {
   const items: AttentionItem[] = [];
 
-  const memberships = await mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id);
+  const memberships = await supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id);
   const activeHere = memberships.filter((m) => m.status === "active");
   if (activeHere.length <= 1) {
     items.push({
@@ -47,7 +47,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
     });
   }
 
-  const positions = await mockPeopleProvider.listPositions(ctx.institution.id);
+  const positions = await supabasePeopleProvider.listPositions(ctx.institution.id);
   if (positions.length === 0) {
     items.push({
       id: "shape-organization",
@@ -62,7 +62,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
     // seated anywhere in it. Founder bypass means this never blocks
     // anything real, which is exactly why it needs to be surfaced here
     // instead of staying invisible.
-    const holdings = await mockPeopleProvider.listPositionHoldersForPerson(ctx.person.id);
+    const holdings = await supabasePeopleProvider.listPositionHoldersForPerson(ctx.person.id);
     const holdsAnyPosition = holdings.some((h) => !h.endedAt);
     if (!holdsAnyPosition) {
       items.push({
@@ -75,7 +75,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
     }
   }
 
-  const workItems = await mockWorkProvider.listWorkItems(ctx.institution.id);
+  const workItems = await supabaseWorkProvider.listWorkItems(ctx.institution.id);
   for (const item of workItems) {
     if (item.kind === "task") {
       if (item.assigneePersonId === ctx.person.id && item.status !== "complete") {
@@ -111,7 +111,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
   // with nobody accountable for it, and a warranty about to lapse. Same
   // same-actor exclusion as Work's Approvals — nobody sees their own
   // expense as something they can decide.
-  const transactions = await mockFinanceProvider.listTransactions(ctx.institution.id);
+  const transactions = await supabaseFinanceProvider.listTransactions(ctx.institution.id);
   for (const item of transactions) {
     if (item.kind !== "expense" || item.approvalStatus !== "pending" || item.createdByPersonId === ctx.person.id) continue;
     const area = resolveExpenseApprovalArea(item);
@@ -127,7 +127,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
   }
 
   if (ctx.permissions.has("assets.manage")) {
-    const assets = await mockFinanceProvider.listAssets(ctx.institution.id);
+    const assets = await supabaseFinanceProvider.listAssets(ctx.institution.id);
     for (const asset of assets) {
       if (asset.status === "in_use" && !asset.custodianPersonId) {
         items.push({
@@ -161,7 +161,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
   // one; `lastActivityAt` is a real, honest timestamp, not an invented
   // metric.
   if (ctx.permissions.has("community.manage")) {
-    const contacts = await mockCommunityProvider.listContacts(ctx.institution.id);
+    const contacts = await supabaseCommunityProvider.listContacts(ctx.institution.id);
     for (const contact of contacts) {
       if (contact.status !== "active") continue;
       const hasActiveRelationship = contact.relationships.some((r) => r.status === "active");
@@ -201,7 +201,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
   // actually do something about it — Projects' own Area, the project's
   // owner, or one of its members — never everyone, never a manufactured
   // "budget" nudge (the brief names that explicitly as future, unbuilt).
-  const projects = await mockProjectsProvider.listProjects(ctx.institution.id);
+  const projects = await supabaseProjectsProvider.listProjects(ctx.institution.id);
   for (const project of projects) {
     if (project.status !== "active") continue;
     const involved =
@@ -255,7 +255,7 @@ export async function composeActNow(ctx: IdentityContext): Promise<AttentionItem
   // not implementation. Same-actor exclusion mirrors Work/Finance: nobody
   // sees their own submission as something they can decide.
   if (ctx.permissions.has("documents.manage")) {
-    const documents = await mockDocumentsProvider.listDocuments(ctx.institution.id);
+    const documents = await supabaseDocumentsProvider.listDocuments(ctx.institution.id);
     for (const document of documents) {
       if (document.status === "archived") continue;
 
@@ -328,9 +328,9 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     items.push({ id: "purpose", label: "Purpose", value: ctx.institution.purpose, sub: "" });
   }
 
-  const positions = await mockPeopleProvider.listPositions(ctx.institution.id);
+  const positions = await supabasePeopleProvider.listPositions(ctx.institution.id);
   if (positions.length > 0) {
-    const holdersByPosition = await Promise.all(positions.map((p) => mockPeopleProvider.listPositionHolders(p.id)));
+    const holdersByPosition = await Promise.all(positions.map((p) => supabasePeopleProvider.listPositionHolders(p.id)));
     const filled = holdersByPosition.filter((holders) => holders.some((h) => !h.endedAt)).length;
     items.push({
       id: "organization",
@@ -340,7 +340,7 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     });
   }
 
-  const workItems = await mockWorkProvider.listWorkItems(ctx.institution.id);
+  const workItems = await supabaseWorkProvider.listWorkItems(ctx.institution.id);
   if (workItems.length > 0) {
     const openTasks = workItems.filter((w) => w.kind === "task" && w.status !== "complete").length;
     const pendingApprovals = workItems.filter((w) => w.kind === "approval" && w.status === "pending").length;
@@ -352,7 +352,7 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     });
   }
 
-  const transactionsForBeAware = await mockFinanceProvider.listTransactions(ctx.institution.id);
+  const transactionsForBeAware = await supabaseFinanceProvider.listTransactions(ctx.institution.id);
   const active = transactionsForBeAware.filter((t) => t.status !== "archived");
   if (active.length > 0) {
     const recordedIncome = active.filter((t) => t.kind === "income").reduce((sum, t) => sum + t.amount, 0);
@@ -365,7 +365,7 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     });
   }
 
-  const assetsForBeAware = await mockFinanceProvider.listAssets(ctx.institution.id);
+  const assetsForBeAware = await supabaseFinanceProvider.listAssets(ctx.institution.id);
   if (assetsForBeAware.length > 0) {
     const unaccounted = assetsForBeAware.filter((a) => a.status === "in_use" && !a.custodianPersonId).length;
     items.push({
@@ -376,7 +376,7 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     });
   }
 
-  const contactsForBeAware = await mockCommunityProvider.listContacts(ctx.institution.id);
+  const contactsForBeAware = await supabaseCommunityProvider.listContacts(ctx.institution.id);
   const activeContacts = contactsForBeAware.filter((c) => c.status === "active");
   if (activeContacts.length > 0) {
     const byDirection = { receiving: 0, supporting: 0, supplying: 0 } as Record<string, number>;
@@ -393,7 +393,7 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     });
   }
 
-  const projectsForBeAware = await mockProjectsProvider.listProjects(ctx.institution.id);
+  const projectsForBeAware = await supabaseProjectsProvider.listProjects(ctx.institution.id);
   const activeProjects = projectsForBeAware.filter((p) => p.status === "active");
   if (activeProjects.length > 0) {
     const blocked = activeProjects.filter((p) => p.stage === "Blocked").length;
@@ -405,7 +405,7 @@ export async function composeBeAware(ctx: IdentityContext): Promise<BeAwareItem[
     });
   }
 
-  const documentsForBeAware = await mockDocumentsProvider.listDocuments(ctx.institution.id);
+  const documentsForBeAware = await supabaseDocumentsProvider.listDocuments(ctx.institution.id);
   const activeDocuments = documentsForBeAware.filter((d) => d.status !== "archived");
   if (activeDocuments.length > 0) {
     const pendingApproval = activeDocuments.filter((d) => d.approvalStatus === "pending").length;

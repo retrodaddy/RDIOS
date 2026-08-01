@@ -1,22 +1,22 @@
 import { requireIdentity } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
-import { mockWorkProvider } from "@/applications/work/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
+import { supabaseWorkProvider } from "@/applications/work/supabase-provider";
 import { WorkBoard, type WorkRosterPerson } from "@/components/os/WorkBoard";
 
 export const dynamic = "force-dynamic";
 
-export default async function WorkPage() {
+export default async function WorkPage({ searchParams }: { searchParams: { open?: string } }) {
   const ctx = await requireIdentity("/work");
 
   const [memberships, workItems, holdings] = await Promise.all([
-    mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
-    mockWorkProvider.listWorkItems(ctx.institution.id),
-    mockPeopleProvider.listPositionHoldersForPerson(ctx.person.id),
+    supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
+    supabaseWorkProvider.listWorkItems(ctx.institution.id),
+    supabasePeopleProvider.listPositionHoldersForPerson(ctx.person.id),
   ]);
 
   const rosterMemberships = memberships.filter((m) => m.status === "active");
-  const rosterPeople = await Promise.all(rosterMemberships.map((m) => mockIdentityProvider.getPerson(m.personId)));
+  const rosterPeople = await Promise.all(rosterMemberships.map((m) => supabaseIdentityProvider.getPerson(m.personId)));
   const roster: WorkRosterPerson[] = rosterPeople.filter((p): p is NonNullable<typeof p> => p !== null);
   // Which Positions this person actively holds — needed client-side so the
   // board can tell, before any click, whether an escalated step now
@@ -44,6 +44,7 @@ export default async function WorkPage() {
         myPositionIds={myPositionIds}
         institutionType={ctx.institution.type}
         isFounder={ctx.institution.founderPersonId === ctx.person.id}
+        initialSelectedId={searchParams.open ?? null}
       />
     </div>
   );

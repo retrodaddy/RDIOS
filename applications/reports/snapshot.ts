@@ -1,13 +1,13 @@
 import "server-only";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { listHistory } from "@/os/attention/history-store";
-import { mockPeopleProvider } from "@/applications/people/mock-provider";
-import { mockWorkProvider } from "@/applications/work/mock-provider";
-import { mockFinanceProvider } from "@/applications/finance/mock-provider";
-import { mockCommunityProvider } from "@/applications/community/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { listHistory } from "@/os/attention/supabase-history-store";
+import { supabasePeopleProvider } from "@/applications/people/supabase-provider";
+import { supabaseWorkProvider } from "@/applications/work/supabase-provider";
+import { supabaseFinanceProvider } from "@/applications/finance/supabase-provider";
+import { supabaseCommunityProvider } from "@/applications/community/supabase-provider";
 import { DIRECTION_LABELS } from "@/applications/community/types";
-import { mockProjectsProvider } from "@/applications/projects/mock-provider";
-import { mockDocumentsProvider } from "@/applications/documents/mock-provider";
+import { supabaseProjectsProvider } from "@/applications/projects/supabase-provider";
+import { supabaseDocumentsProvider } from "@/applications/documents/supabase-provider";
 import { DOCUMENT_STATUS_LABELS } from "@/applications/documents/types";
 import type { ReportCategory, ReportFilters, ReportSnapshot } from "./types";
 
@@ -38,15 +38,15 @@ function inRange(iso: string, filters: ReportFilters): boolean {
 }
 
 async function computeInstitutionOverview(institutionId: string, filters: ReportFilters): Promise<ReportSnapshot> {
-  const institution = await mockIdentityProvider.getInstitution(institutionId);
+  const institution = await supabaseIdentityProvider.getInstitution(institutionId);
   const [memberships, positions, workItems, transactions, contacts, projects, documents] = await Promise.all([
-    mockIdentityProvider.listMembershipsForInstitution(institutionId),
-    mockPeopleProvider.listPositions(institutionId),
-    mockWorkProvider.listWorkItems(institutionId),
-    mockFinanceProvider.listTransactions(institutionId),
-    mockCommunityProvider.listContacts(institutionId),
-    mockProjectsProvider.listProjects(institutionId),
-    mockDocumentsProvider.listDocuments(institutionId),
+    supabaseIdentityProvider.listMembershipsForInstitution(institutionId),
+    supabasePeopleProvider.listPositions(institutionId),
+    supabaseWorkProvider.listWorkItems(institutionId),
+    supabaseFinanceProvider.listTransactions(institutionId),
+    supabaseCommunityProvider.listContacts(institutionId),
+    supabaseProjectsProvider.listProjects(institutionId),
+    supabaseDocumentsProvider.listDocuments(institutionId),
   ]);
 
   const activeMembers = memberships.filter((m) => m.status === "active").length;
@@ -72,12 +72,12 @@ async function computeInstitutionOverview(institutionId: string, filters: Report
 }
 
 async function computePeopleOverview(institutionId: string): Promise<ReportSnapshot> {
-  const memberships = await mockIdentityProvider.listMembershipsForInstitution(institutionId);
+  const memberships = await supabaseIdentityProvider.listMembershipsForInstitution(institutionId);
   const active = memberships.filter((m) => m.status === "active");
   const invited = memberships.filter((m) => m.status === "invited");
 
-  const positions = await mockPeopleProvider.listPositions(institutionId);
-  const holdersByPosition = await Promise.all(positions.map((p) => mockPeopleProvider.listPositionHolders(p.id)));
+  const positions = await supabasePeopleProvider.listPositions(institutionId);
+  const holdersByPosition = await Promise.all(positions.map((p) => supabasePeopleProvider.listPositionHolders(p.id)));
   const filled = holdersByPosition.filter((holders) => holders.some((h) => !h.endedAt)).length;
 
   return {
@@ -101,9 +101,9 @@ async function computePeopleOverview(institutionId: string): Promise<ReportSnaps
 }
 
 async function computeOrganizationOverview(institutionId: string): Promise<ReportSnapshot> {
-  const positions = await mockPeopleProvider.listPositions(institutionId);
+  const positions = await supabasePeopleProvider.listPositions(institutionId);
   const active = positions.filter((p) => p.status === "active");
-  const holdersByPosition = await Promise.all(active.map((p) => mockPeopleProvider.listPositionHolders(p.id)));
+  const holdersByPosition = await Promise.all(active.map((p) => supabasePeopleProvider.listPositionHolders(p.id)));
   const filled = holdersByPosition.filter((holders) => holders.some((h) => !h.endedAt)).length;
   const topLevel = active.filter((p) => p.reportsToPositionIds.length === 0).length;
 
@@ -128,7 +128,7 @@ async function computeOrganizationOverview(institutionId: string): Promise<Repor
 }
 
 async function computeWorkSummary(institutionId: string, filters: ReportFilters): Promise<ReportSnapshot> {
-  let items = await mockWorkProvider.listWorkItems(institutionId);
+  let items = await supabaseWorkProvider.listWorkItems(institutionId);
   if (filters.dateFrom || filters.dateTo) items = items.filter((i) => inRange(i.createdAt, filters));
   if (filters.projectId) items = items.filter((i) => i.projectId === filters.projectId);
   if (filters.personId) items = items.filter((i) => i.createdByPersonId === filters.personId || (i.kind === "task" && i.assigneePersonId === filters.personId));
@@ -173,7 +173,7 @@ async function computeWorkSummary(institutionId: string, filters: ReportFilters)
 }
 
 async function computeFinancialSummary(institutionId: string, filters: ReportFilters): Promise<ReportSnapshot> {
-  let transactions = await mockFinanceProvider.listTransactions(institutionId);
+  let transactions = await supabaseFinanceProvider.listTransactions(institutionId);
   transactions = transactions.filter((t) => t.status !== "archived");
   if (filters.dateFrom || filters.dateTo) transactions = transactions.filter((t) => inRange(t.date, filters));
   if (filters.projectId) transactions = transactions.filter((t) => t.projectId === filters.projectId);
@@ -184,7 +184,7 @@ async function computeFinancialSummary(institutionId: string, filters: ReportFil
   const expense = transactions.filter((t) => t.kind === "expense").reduce((s, t) => s + t.amount, 0);
   const pendingApproval = transactions.filter((t) => t.kind === "expense" && t.approvalStatus === "pending").length;
 
-  let assets = await mockFinanceProvider.listAssets(institutionId);
+  let assets = await supabaseFinanceProvider.listAssets(institutionId);
   if (filters.projectId) assets = assets.filter((a) => a.projectId === filters.projectId);
   const unaccounted = assets.filter((a) => a.status === "in_use" && !a.custodianPersonId).length;
 
@@ -210,7 +210,7 @@ async function computeFinancialSummary(institutionId: string, filters: ReportFil
 }
 
 async function computeCommunitySummary(institutionId: string, filters: ReportFilters): Promise<ReportSnapshot> {
-  let contacts = await mockCommunityProvider.listContacts(institutionId);
+  let contacts = await supabaseCommunityProvider.listContacts(institutionId);
   contacts = contacts.filter((c) => c.status === "active");
   if (filters.dateFrom || filters.dateTo) contacts = contacts.filter((c) => inRange(c.createdAt, filters));
   if (filters.projectId) contacts = contacts.filter((c) => c.projectId === filters.projectId);
@@ -246,7 +246,7 @@ async function computeCommunitySummary(institutionId: string, filters: ReportFil
 }
 
 async function computeProjectSummary(institutionId: string, filters: ReportFilters): Promise<ReportSnapshot> {
-  let projects = await mockProjectsProvider.listProjects(institutionId);
+  let projects = await supabaseProjectsProvider.listProjects(institutionId);
   projects = projects.filter((p) => p.status === "active");
   if (filters.dateFrom || filters.dateTo) projects = projects.filter((p) => inRange(p.createdAt, filters));
   if (filters.personId) projects = projects.filter((p) => p.ownerPersonId === filters.personId || p.members.some((m) => m.personId === filters.personId));
@@ -274,7 +274,7 @@ async function computeProjectSummary(institutionId: string, filters: ReportFilte
 }
 
 async function computeDocumentSummary(institutionId: string, filters: ReportFilters): Promise<ReportSnapshot> {
-  let documents = await mockDocumentsProvider.listDocuments(institutionId);
+  let documents = await supabaseDocumentsProvider.listDocuments(institutionId);
   if (filters.dateFrom || filters.dateTo) documents = documents.filter((d) => inRange(d.createdAt, filters));
   if (filters.projectId) documents = documents.filter((d) => d.relationships.some((r) => r.relatedType === "project" && r.relatedId === filters.projectId));
   if (filters.personId) documents = documents.filter((d) => d.ownerPersonId === filters.personId || d.createdByPersonId === filters.personId);

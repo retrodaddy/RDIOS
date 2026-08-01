@@ -26,6 +26,7 @@ export function OrganizationCanvas({
   canManage,
   isFounder,
   institutionType,
+  initialSelectedId,
 }: {
   initialPositions: Position[];
   holdersByPosition: Record<string, PositionHolder[]>;
@@ -33,6 +34,9 @@ export function OrganizationCanvas({
   canManage: boolean;
   isFounder: boolean;
   institutionType: import("@/os/identity/types").InstitutionType;
+  /** Universal Search's own deep-link (M12) — opens straight to this
+   *  Position's existing side panel, never a duplicate screen. */
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,7 +44,12 @@ export function OrganizationCanvas({
   const [positions, setPositions] = useState(initialPositions);
   useEffect(() => setPositions(initialPositions), [initialPositions]);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+  // Universal Search (M12) — see WorkBoard's identical effect for why
+  // this is needed beyond the useState initializer.
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
   const [dragging, setDragging] = useState<{ id: string; dx: number; dy: number; moved: boolean } | null>(null);
   const [connecting, setConnecting] = useState<{ fromId: string; point: Point } | null>(null);
   const [newNodeAt, setNewNodeAt] = useState<Point | null>(null);

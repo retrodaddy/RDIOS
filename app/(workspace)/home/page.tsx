@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireIdentity } from "@/os/identity/session";
 import { composeActNow, composeBeAware, composeHistory } from "@/os/attention/engine";
 import { timeAgo } from "@/os/attention/timeAgo";
+import { composeTamizhiObservations } from "@/engines/tamizhi";
+import { TamizhiObservations } from "@/components/os/TamizhiObservations";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +22,11 @@ function partOfDay(): string {
  */
 export default async function HomePage() {
   const ctx = await requireIdentity();
-  const [actNow, beAware, history] = await Promise.all([
+  const [actNow, beAware, history, tamizhiObservations] = await Promise.all([
     composeActNow(ctx),
     composeBeAware(ctx),
     composeHistory(ctx),
+    composeTamizhiObservations(ctx.institution.id),
   ]);
   const firstName = ctx.person.name.split(" ")[0];
 
@@ -78,6 +81,8 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      <TamizhiObservations recommendations={tamizhiObservations} />
 
       {/* History */}
       <section className="mt-12">

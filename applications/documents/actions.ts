@@ -1,10 +1,11 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
-import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/supabase-history-store";
 import type { HistoryEntry } from "@/os/attention/types";
-import { mockDocumentsProvider } from "./mock-provider";
+import { DbError } from "@/lib/db/client";
+import { supabaseDocumentsProvider } from "./supabase-provider";
 import type { AttachmentKind, Document, DocumentRelationshipType } from "./types";
 import { ATTACHMENT_KINDS, DOCUMENT_RELATIONSHIP_TYPES } from "./types";
 
@@ -17,11 +18,11 @@ function notResponsible(what: string): ActionResult {
 }
 
 async function nameOf(personId: string): Promise<string> {
-  return (await mockIdentityProvider.getPerson(personId))?.name ?? "Someone";
+  return (await supabaseIdentityProvider.getPerson(personId))?.name ?? "Someone";
 }
 
 async function getOwnedDocument(id: string, institutionId: string): Promise<Document | null> {
-  const document = await mockDocumentsProvider.getDocument(id);
+  const document = await supabaseDocumentsProvider.getDocument(id);
   if (!document || document.institutionId !== institutionId) return null;
   return document;
 }
@@ -47,7 +48,7 @@ export async function createDocumentAction(formData: FormData): Promise<ActionRe
   const documentNumber = String(formData.get("documentNumber") ?? "").trim() || null;
   const expiresAt = String(formData.get("expiresAt") ?? "").trim() || null;
 
-  const document = await mockDocumentsProvider.createDocument({
+  const document = await supabaseDocumentsProvider.createDocument({
     institutionId: ctx.institution.id,
     title,
     type,
@@ -79,7 +80,7 @@ export async function updateDocumentDetailsAction(id: string, formData: FormData
   const type = String(formData.get("type") ?? "").trim();
   if (!type) return { ok: false, error: "Type is required." };
 
-  await mockDocumentsProvider.updateDocumentDetails(id, {
+  await supabaseDocumentsProvider.updateDocumentDetails(id, {
     title,
     type,
     description: String(formData.get("description") ?? "").trim() || null,
@@ -102,7 +103,7 @@ export async function setDocumentOwnerAction(id: string, ownerPersonId: string |
   const document = await getOwnedDocument(id, ctx.institution.id);
   if (!document) return { ok: false, error: "Document not found." };
 
-  await mockDocumentsProvider.setDocumentOwner(id, ownerPersonId);
+  await supabaseDocumentsProvider.setDocumentOwner(id, ownerPersonId);
   const name = ownerPersonId ? (ownerPersonId === ctx.person.id ? "themselves" : await nameOf(ownerPersonId)) : null;
   recordHistory(
     ctx.institution.id,
@@ -125,7 +126,7 @@ export async function addDocumentVersionAction(id: string, formData: FormData): 
   if (!attachment && !notes) return { ok: false, error: "Add a file or a note for this version." };
 
   const nextVersionNumber = document.versions.length + 1;
-  await mockDocumentsProvider.addVersion(id, { attachment, notes, createdByPersonId: ctx.person.id });
+  await supabaseDocumentsProvider.addVersion(id, { attachment, notes, createdByPersonId: ctx.person.id });
   recordHistory(ctx.institution.id, `${ctx.person.name} added version ${nextVersionNumber} of "${document.title}".`, {
     subjectType: SUBJECT_TYPE,
     subjectId: document.id,
@@ -143,7 +144,7 @@ export async function restoreDocumentVersionAction(id: string, versionId: string
   const target = document.versions.find((v) => v.id === versionId);
   if (!target) return { ok: false, error: "Version not found." };
 
-  await mockDocumentsProvider.restoreVersion(id, versionId, ctx.person.id);
+  await supabaseDocumentsProvider.restoreVersion(id, versionId, ctx.person.id);
   recordHistory(ctx.institution.id, `${ctx.person.name} restored "${document.title}" to version ${target.versionNumber}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: document.id,
@@ -166,7 +167,7 @@ export async function addDocumentRelationshipAction(
   const document = await getOwnedDocument(id, ctx.institution.id);
   if (!document) return { ok: false, error: "Document not found." };
 
-  await mockDocumentsProvider.addRelationship(id, relatedType as DocumentRelationshipType, relatedId, label);
+  await supabaseDocumentsProvider.addRelationship(id, relatedType as DocumentRelationshipType, relatedId, label);
   recordHistory(ctx.institution.id, `${ctx.person.name} linked "${document.title}" to ${label}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: document.id,
@@ -184,7 +185,7 @@ export async function removeDocumentRelationshipAction(id: string, relationshipI
   const relationship = document.relationships.find((r) => r.id === relationshipId);
   if (!relationship) return { ok: false, error: "Relationship not found." };
 
-  await mockDocumentsProvider.removeRelationship(id, relationshipId);
+  await supabaseDocumentsProvider.removeRelationship(id, relationshipId);
   recordHistory(ctx.institution.id, `${ctx.person.name} removed the link from "${document.title}" to ${relationship.label}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: document.id,
@@ -201,7 +202,7 @@ export async function submitDocumentForApprovalAction(id: string): Promise<Actio
   if (!document) return { ok: false, error: "Document not found." };
   if (document.approvalStatus === "pending") return { ok: false, error: "Already awaiting approval." };
 
-  await mockDocumentsProvider.submitForApproval(id);
+  await supabaseDocumentsProvider.submitForApproval(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} submitted "${document.title}" for approval.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: document.id,
@@ -225,7 +226,13 @@ export async function decideDocumentApprovalAction(id: string, decision: "approv
     return { ok: false, error: "You created this document — you can't also decide its approval." };
   }
 
-  const result = await mockDocumentsProvider.decideApproval(id, ctx.person.id, decision);
+  let result: Awaited<ReturnType<typeof supabaseDocumentsProvider.decideApproval>>;
+  try {
+    result = await supabaseDocumentsProvider.decideApproval(id, ctx.person.id, decision);
+  } catch (err) {
+    if (err instanceof DbError) return { ok: false, error: "Couldn't record this decision. Please try again." };
+    throw err;
+  }
   if (!result) return { ok: false, error: "Could not record this decision." };
 
   recordHistory(
@@ -244,7 +251,7 @@ export async function archiveDocumentAction(id: string): Promise<ActionResult> {
   const document = await getOwnedDocument(id, ctx.institution.id);
   if (!document) return { ok: false, error: "Document not found." };
 
-  await mockDocumentsProvider.archiveDocument(id);
+  await supabaseDocumentsProvider.archiveDocument(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} archived "${document.title}".`, {
     subjectType: SUBJECT_TYPE,
     subjectId: document.id,
@@ -261,7 +268,7 @@ export async function restoreDocumentAction(id: string): Promise<ActionResult> {
   if (!document) return { ok: false, error: "Document not found." };
   if (document.status !== "archived") return { ok: false, error: "This document isn't archived." };
 
-  await mockDocumentsProvider.restoreDocument(id);
+  await supabaseDocumentsProvider.restoreDocument(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} restored "${document.title}" from the archive.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: document.id,

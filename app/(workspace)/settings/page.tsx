@@ -1,20 +1,20 @@
 import { requireIdentity } from "@/os/identity/session";
-import { mockIdentityProvider } from "@/os/identity/mock-provider";
+import { supabaseIdentityProvider } from "@/os/identity/supabase-provider";
 import { InviteForm } from "./InviteForm";
 import { PendingInvites, type PendingInvite } from "./PendingInvites";
 import { PreferencesForm } from "./PreferencesForm";
-import { mockPreferencesProvider } from "@/os/preferences/mock-provider";
+import { supabasePreferencesProvider } from "@/os/preferences/supabase-provider";
 import { getNavDestinations } from "@/os/navigation";
 
 export default async function SettingsPage() {
   const ctx = await requireIdentity("/settings");
 
   const [memberships, preferences] = await Promise.all([
-    mockIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
-    mockPreferencesProvider.getPreferences(ctx.person.id),
+    supabaseIdentityProvider.listMembershipsForInstitution(ctx.institution.id),
+    supabasePreferencesProvider.getPreferences(ctx.person.id),
   ]);
   const pendingMemberships = memberships.filter((m) => m.status === "invited");
-  const pendingPeople = await Promise.all(pendingMemberships.map((m) => mockIdentityProvider.getPerson(m.personId)));
+  const pendingPeople = await Promise.all(pendingMemberships.map((m) => supabaseIdentityProvider.getPerson(m.personId)));
   const pendingInvites: PendingInvite[] = pendingMemberships
     .map((m, i) => (pendingPeople[i] ? { membershipId: m.id, name: pendingPeople[i]!.name, email: pendingPeople[i]!.email, createdAt: m.createdAt, expiresAt: m.expiresAt } : null))
     .filter((p): p is PendingInvite => p !== null);

@@ -71,6 +71,8 @@ export function MoneyBoard({
   initialAccounts,
   initialTransactions,
   initialAssets,
+  initialTab,
+  initialSelectedId,
 }: {
   institutionType: InstitutionType;
   currentPersonId: string;
@@ -82,10 +84,23 @@ export function MoneyBoard({
   initialAccounts: FinancialAccount[];
   initialTransactions: FinanceTransaction[];
   initialAssets: Asset[];
+  /** Universal Search's own deep-link (M12) — opens straight to a
+   *  specific transaction or asset's existing drawer, never a duplicate
+   *  screen. Undefined for every ordinary visit to `/money`. */
+  initialTab?: Tab;
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("transactions");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "transactions");
   const refresh = () => router.refresh();
+
+  // Universal Search (M12) navigates here client-side with a new
+  // `?tab=`/`?open=` pair while this board stays mounted — see
+  // WorkBoard's identical effect for why a `useState` initializer alone
+  // isn't enough for a second search result opened back-to-back.
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
 
   const areaLabel = (key: PermissionKey) => getPermissionLabel(institutionType, key, PERMISSION_LABELS[key]);
   const personName = (id: string | null) => {
@@ -137,6 +152,7 @@ export function MoneyBoard({
             areaLabel={areaLabel}
             personName={personName}
             onChanged={refresh}
+            initialSelectedId={initialSelectedId ?? null}
           />
         )}
         {tab === "accounts" && (
@@ -150,6 +166,7 @@ export function MoneyBoard({
             canManageAssets={canManageAssets}
             personName={personName}
             onChanged={refresh}
+            initialSelectedId={initialSelectedId ?? null}
           />
         )}
       </div>
@@ -308,6 +325,7 @@ function TransactionsPanel({
   areaLabel,
   personName,
   onChanged,
+  initialSelectedId,
 }: {
   transactions: FinanceTransaction[];
   accounts: FinancialAccount[];
@@ -317,9 +335,13 @@ function TransactionsPanel({
   areaLabel: (key: PermissionKey) => string;
   personName: (id: string | null) => string | null;
   onChanged: () => void;
+  initialSelectedId?: string | null;
 }) {
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
   const active = useMemo(() => transactions.filter((t) => t.status !== "archived"), [transactions]);
   const selected = transactions.find((t) => t.id === selectedId) ?? null;
 
@@ -694,6 +716,7 @@ function AssetsPanel({
   canManageAssets,
   personName,
   onChanged,
+  initialSelectedId,
 }: {
   assets: Asset[];
   transactions: FinanceTransaction[];
@@ -701,9 +724,13 @@ function AssetsPanel({
   canManageAssets: boolean;
   personName: (id: string | null) => string | null;
   onChanged: () => void;
+  initialSelectedId?: string | null;
 }) {
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
   const selected = assets.find((a) => a.id === selectedId) ?? null;
   const expenses = useMemo(() => transactions.filter((t): t is Expense => t.kind === "expense"), [transactions]);
 

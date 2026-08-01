@@ -57,15 +57,25 @@ export function DocumentsBoard({
   initialDocuments,
   roster,
   relationshipCandidates,
+  initialSelectedId,
 }: {
   canManage: boolean;
   initialDocuments: Document[];
   roster: DocumentsRosterPerson[];
   relationshipCandidates: Record<DocumentRelationshipType, RelationshipCandidate[]>;
+  /** Universal Search's own deep-link (M12) — opens straight to this
+   *  Document's existing drawer, never a duplicate screen. */
+  initialSelectedId?: string | null;
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
+
+  // Universal Search (M12) — see WorkBoard's identical effect for why
+  // this is needed beyond the useState initializer.
+  useEffect(() => {
+    if (initialSelectedId) setSelectedId(initialSelectedId);
+  }, [initialSelectedId]);
   const refresh = () => router.refresh();
 
   const active = initialDocuments.filter((d) => d.status !== "archived");

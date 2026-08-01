@@ -1,9 +1,10 @@
 "use server";
 
 import { getIdentityContext } from "@/os/identity/session";
-import { recordHistory, listHistoryForSubject } from "@/os/attention/history-store";
+import { recordHistory, listHistoryForSubject } from "@/os/attention/supabase-history-store";
 import type { HistoryEntry } from "@/os/attention/types";
-import { mockCommunityProvider } from "./mock-provider";
+import { DbError } from "@/lib/db/client";
+import { supabaseCommunityProvider } from "./supabase-provider";
 import { CONTACT_KINDS, DIRECTIONS, type Address, type ContactKind, type Direction, type PointOfContact, type RelationshipStatus } from "./types";
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -51,7 +52,7 @@ function parsePointsOfContact(raw: FormDataEntryValue | null): Omit<PointOfConta
 }
 
 async function getOwnedContact(id: string, institutionId: string) {
-  const contact = await mockCommunityProvider.getContact(id);
+  const contact = await supabaseCommunityProvider.getContact(id);
   if (!contact || contact.institutionId !== institutionId) return null;
   return contact;
 }
@@ -78,21 +79,27 @@ export async function createContactAction(formData: FormData): Promise<ActionRes
   const pointsOfContact = parsePointsOfContact(formData.get("pointsOfContact"));
   const projectId = String(formData.get("projectId") ?? "").trim() || null;
 
-  const contact = await mockCommunityProvider.createContact({
-    institutionId: ctx.institution.id,
-    kind: kind as ContactKind,
-    name,
-    description,
-    email,
-    phone,
-    addresses,
-    notes,
-    pointsOfContact,
-    direction: direction as Direction,
-    type,
-    createdByPersonId: ctx.person.id,
-    projectId,
-  });
+  let contact: Awaited<ReturnType<typeof supabaseCommunityProvider.createContact>>;
+  try {
+    contact = await supabaseCommunityProvider.createContact({
+      institutionId: ctx.institution.id,
+      kind: kind as ContactKind,
+      name,
+      description,
+      email,
+      phone,
+      addresses,
+      notes,
+      pointsOfContact,
+      direction: direction as Direction,
+      type,
+      createdByPersonId: ctx.person.id,
+      projectId,
+    });
+  } catch (err) {
+    if (err instanceof DbError) return { ok: false, error: "Couldn't save this contact. Please try again." };
+    throw err;
+  }
 
   recordHistory(
     ctx.institution.id,
@@ -113,7 +120,7 @@ export async function updateContactAction(id: string, formData: FormData): Promi
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { ok: false, error: "Name is required." };
 
-  await mockCommunityProvider.updateContact(id, {
+  await supabaseCommunityProvider.updateContact(id, {
     name,
     description: String(formData.get("description") ?? "").trim() || null,
     email: String(formData.get("email") ?? "").trim() || null,
@@ -138,7 +145,7 @@ export async function archiveContactAction(id: string): Promise<ActionResult> {
   const contact = await getOwnedContact(id, ctx.institution.id);
   if (!contact) return { ok: false, error: "Contact not found." };
 
-  await mockCommunityProvider.archiveContact(id);
+  await supabaseCommunityProvider.archiveContact(id);
   recordHistory(ctx.institution.id, `${ctx.person.name} archived ${contact.name}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: contact.id,
@@ -156,7 +163,7 @@ export async function addRelationshipAction(contactId: string, direction: string
   const contact = await getOwnedContact(contactId, ctx.institution.id);
   if (!contact) return { ok: false, error: "Contact not found." };
 
-  await mockCommunityProvider.addRelationship(contactId, direction as Direction, type);
+  await supabaseCommunityProvider.addRelationship(contactId, direction as Direction, type);
   recordHistory(ctx.institution.id, `${ctx.person.name} added a ${type} relationship for ${contact.name}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: contact.id,
@@ -174,7 +181,7 @@ export async function endRelationshipAction(contactId: string, relationshipId: s
   const relationship = contact.relationships.find((r) => r.id === relationshipId);
   if (!relationship) return { ok: false, error: "Relationship not found." };
 
-  await mockCommunityProvider.endRelationship(relationshipId);
+  await supabaseCommunityProvider.endRelationship(relationshipId);
   recordHistory(ctx.institution.id, `${ctx.person.name} ended the ${relationship.type} relationship with ${contact.name}.`, {
     subjectType: SUBJECT_TYPE,
     subjectId: contact.id,
@@ -192,7 +199,7 @@ export async function setRelationshipStatusAction(contactId: string, relationshi
   const relationship = contact.relationships.find((r) => r.id === relationshipId);
   if (!relationship) return { ok: false, error: "Relationship not found." };
 
-  await mockCommunityProvider.setRelationshipStatus(relationshipId, status as RelationshipStatus);
+  await supabaseCommunityProvider.setRelationshipStatus(relationshipId, status as RelationshipStatus);
   recordHistory(
     ctx.institution.id,
     `${ctx.person.name} marked the ${relationship.type} relationship with ${contact.name} as ${status}.`,
@@ -224,7 +231,7 @@ export async function setContactProjectAction(contactId: string, projectId: stri
   const contact = await getOwnedContact(contactId, ctx.institution.id);
   if (!contact) return { ok: false, error: "Contact not found." };
 
-  await mockCommunityProvider.setContactProject(contactId, projectId);
+  await supabaseCommunityProvider.setContactProject(contactId, projectId);
   recordHistory(
     ctx.institution.id,
     projectId ? `${ctx.person.name} linked ${contact.name} to a project.` : `${ctx.person.name} unlinked ${contact.name} from its project.`,
@@ -242,6 +249,6 @@ export async function addDocumentRefAction(contactId: string, label: string): Pr
   if (!contact) return { ok: false, error: "Contact not found." };
   if (!ctx.permissions.has("community.manage")) return notResponsible("Attaching documents");
 
-  await mockCommunityProvider.addDocumentRef(contactId, label);
+  await supabaseCommunityProvider.addDocumentRef(contactId, label);
   return { ok: true };
 }
